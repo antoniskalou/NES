@@ -31,6 +31,7 @@ impl Memory {
     }
 }
 
+
 bitflags! {
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Status: u8 {
@@ -78,10 +79,17 @@ enum Instruction {
     AND(u8),
     ASL(u8),
     ADC(u8),
+    CLC,
+    CLD,
+    CLI,
+    CLV,
+    DEX,
+    DEY,
     STA(u8),
     BCC(u8),
     LDY(u8),
     LDA(u8),
+    INX,
     INY,
     INC(u8),
     Illegal(u8),
@@ -94,7 +102,7 @@ impl CPU {
             x: 0,
             y: 0,
             sr: Status::U & Status::I,
-            sp: 0,
+            sp: 0xFD,
             pc: 0x8000,
             memory,
         }
@@ -112,14 +120,21 @@ impl CPU {
         match opcode {
             0x00 => BRK,
             0x06 => ASL(self.fetch()),
+            0x18 => CLC,
             0x25 => AND(self.fetch()),
+            0x58 => CLI,
             0x65 => ADC(self.fetch()),
             0x85 => STA(self.fetch()),
+            0x88 => DEY,
             0x90 => BCC(self.fetch()),
             0xA4 => LDY(self.fetch()),
             0xA9 => LDA(self.fetch()),
+            0xB8 => CLV,
             0xC8 => INY,
+            0xCA => DEX,
+            0xD8 => CLD,
             0xE6 => INC(self.fetch()),
+            0xE8 => INX,
             _ => Illegal(opcode)
         }
     }
@@ -153,6 +168,26 @@ impl CPU {
                 self.sr.set(Status::C, o);
                 // TODO: overflow flag
             }
+            CLC => {
+                self.sr.set(Status::C, false);
+            }
+            CLD => {
+                self.sr.set(Status::D, false);
+            }
+            CLI => {
+                self.sr.set(Status::I, false);
+            }
+            CLV => {
+                self.sr.set(Status::V, false);
+            }
+            DEX => {
+                self.x = self.x.wrapping_sub(1);
+                self.sr.set_zn_flags(self.x);
+            }
+            DEY => {
+                self.y = self.y.wrapping_sub(1);
+                self.sr.set_zn_flags(self.y);
+            }
             LDA(data) => {
                 self.acc = data;
                 self.sr.set_zn_flags(self.acc);
@@ -174,6 +209,10 @@ impl CPU {
             LDY(data) => {
                 self.y = data;
                 self.sr.set_zn_flags(self.y);
+            }
+            INX => {
+                self.x = self.x.wrapping_add(1);
+                self.sr.set_zn_flags(self.x);
             }
             INY => {
                 self.y = self.y.wrapping_add(1);
@@ -231,6 +270,42 @@ fn test_0x06_asl_carry_flag() {
     let mut cpu = CPU::new(mem);
     cpu.tick();
     assert!(cpu.sr.contains(Status::C));
+}
+
+#[test]
+fn test_0x18_clc() {
+    let mem = Memory::with_program(&[0x18]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::C, true);
+    cpu.tick();
+    assert_eq!(cpu.sr.contains(Status::C), false);
+}
+
+#[test]
+fn test_0xd8_cld() {
+    let mem = Memory::with_program(&[0xD8]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::D, true);
+    cpu.tick();
+    assert_eq!(cpu.sr.contains(Status::D), false);
+}
+
+#[test]
+fn test_0x58_cli() {
+    let mem = Memory::with_program(&[0x58]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::I, true);
+    cpu.tick();
+    assert_eq!(cpu.sr.contains(Status::I), false);
+}
+
+#[test]
+fn test_0xb8_clv() {
+    let mem = Memory::with_program(&[0xB8]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::V, true);
+    cpu.tick();
+    assert_eq!(cpu.sr.contains(Status::V), false);
 }
 
 #[test]
@@ -341,7 +416,8 @@ fn test_0x90_bcc_no_carry() {
 fn test_0x65_adc() {
     let mut mem = Memory::with_program(&[0x65, 0x20]);
     mem.write_u8(0x20, 2);
-    let mut cpu = CPU::new(mem);
+    let mut cpu = CPU::new(mem)
+;
     cpu.acc = 40;
     cpu.tick();
     assert_eq!(cpu.acc, 42);
@@ -422,9 +498,38 @@ fn test_0xa4_ldy_zero_flag() {
 }
 
 #[test]
-fn test_0x_a4_ldy_negative_flag() {
+fn test_0xa4_ldy_negative_flag() {
     let mem = Memory::with_program(&[0xA4, 0x80]);
     let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0xe8_inx() {
+    let mem = Memory::with_program(&[0xE8]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 41;
+    cpu.tick();
+    assert_eq!(cpu.x, 42);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0xe8_inx_zero_flag() {
+    let mem = Memory::with_program(&[0xE8]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 0xFF;
+    cpu.tick();
+    assert_eq!(cpu.x, 0);
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0xe8_inx_negative_flag() {
+    let mem = Memory::with_program(&[0xE8]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 0x7F;
     cpu.tick();
     assert!(cpu.sr.contains(Status::N));
 }
@@ -445,6 +550,7 @@ fn test_0xc8_iny_zero_flag() {
     let mut cpu = CPU::new(mem);
     cpu.y = 0xFF;
     cpu.tick();
+    assert_eq!(cpu.y, 0);
     assert!(cpu.sr.contains(Status::Z));
 }
 
@@ -454,6 +560,84 @@ fn test_0xc8_iny_negative_flag() {
     let mut cpu = CPU::new(mem);
     cpu.y = 0x7F;
     cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0xca_dex() {
+    let mem = Memory::with_program(&[0xCA]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 2;
+    cpu.tick();
+    assert_eq!(cpu.x, 1);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0xca_dex_underflow() {
+    let mem = Memory::with_program(&[0xCA]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 0;
+    cpu.tick();
+    assert_eq!(cpu.x, 0xFF);
+}
+
+#[test]
+fn test_0xca_dex_zero_flag() {
+    let mem = Memory::with_program(&[0xCA]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 1;
+    cpu.tick();
+    assert_eq!(cpu.x, 0);
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0xca_dex_negative_flag() {
+    let mem = Memory::with_program(&[0xCA]);
+    let mut cpu = CPU::new(mem);
+    cpu.x = 0xFF;
+    cpu.tick();
+    assert_eq!(cpu.x, 0xFE);
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0x88_dey() {
+    let mem = Memory::with_program(&[0x88]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 2;
+    cpu.tick();
+    assert_eq!(cpu.y, 1);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0x88_dey_underflow() {
+    let mem = Memory::with_program(&[0x88]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 0;
+    cpu.tick();
+    assert_eq!(cpu.y, 0xFF);
+}
+
+#[test]
+fn test_0x88_dey_zero_flag() {
+    let mem = Memory::with_program(&[0x88]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 1;
+    cpu.tick();
+    assert_eq!(cpu.y, 0);
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0x88_dey_negative_flag() {
+    let mem = Memory::with_program(&[0x88]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 0xFF;
+    cpu.tick();
+    assert_eq!(cpu.y, 0xFE);
     assert!(cpu.sr.contains(Status::N));
 }
 
