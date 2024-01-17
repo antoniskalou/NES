@@ -45,6 +45,13 @@ bitflags! {
     }
 }
 
+impl Status {
+    fn set_zn_flags(&mut self, val: u8) {
+        self.set(Status::Z, val == 0);
+        self.set(Status::N, val & 0x80 == 0x80);
+    }
+}
+
 // naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
 #[derive(Debug)]
 struct CPU {
@@ -121,33 +128,33 @@ impl CPU {
                 loop {}
             }
             ADC(addr) => {
-                self.acc += self.memory.read_u8(addr as u16);
-
-                self.sr.set(Status::Z, self.acc == 0);
-                self.sr.set(Status::N, self.acc & 0b1000_0000 != 0);
-                // TODO: carry flag
+                let data = self.memory.read_u8(addr as u16);
+                let (x, o) = self.acc.overflowing_add(data);
+                self.acc = x;
+                self.sr.set_zn_flags(self.acc);
+                self.sr.set(Status::C, o);
+                // TODO: overflow flag
             }
             LDA(data) => {
                 self.acc = data;
-
-                self.sr.set(Status::Z, self.acc == 0);
-                self.sr.set(Status::N, self.acc & 0b1000_0000 != 0);
+                self.sr.set_zn_flags(self.acc);
             }
             STA(addr) => {
                 self.memory.write_u8(addr as u16, self.acc)
             }
             INC(addr) => {
                 let data = self.memory.read_u8(addr as u16);
-                // TODO: handle flags & overflow
-                self.memory.write_u8(addr as u16, data + 1);
+                let x = data.wrapping_add(1);
+                self.memory.write_u8(addr as u16, x);
+                self.sr.set_zn_flags(x);
             }
             LDY(data) => {
                 self.y = data;
-                // TODO: flags
+                self.sr.set_zn_flags(self.y);
             }
             INY => {
-                self.y += 1;
-                // TODO: flags
+                self.y = self.y.wrapping_add(1);
+                self.sr.set_zn_flags(self.y);
             }
             Illegal(opcode) => panic!("illegal opcode: 0x{:02X}", opcode)
         }
@@ -184,7 +191,7 @@ fn test_0xa9_lda_zero_flag() {
 
 #[test]
 fn test_0xa9_lda_negative_flag() {
-    let mem = Memory::with_program(&[0xA9, 0xFF]);
+    let mem = Memory::with_program(&[0xA9, 0x80]);
     let mut cpu = CPU::new(mem);
     cpu.tick();
     assert!(cpu.sr.contains(Status::N));
@@ -220,6 +227,26 @@ fn test_0x65_adc_zero_flag() {
 }
 
 #[test]
+fn test_0x65_adc_negative_flag() {
+    let mut mem = Memory::with_program(&[0x65, 0x20]);
+    mem.write_u8(0x20, 1);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0x7F;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0x65_adc_carry_flag() {
+    let mut mem = Memory::with_program(&[0x65, 0x20]);
+    mem.write_u8(0x20, 1);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0xFF;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::C));
+}
+
+#[test]
 fn test_0xe6_inc() {
     let mut mem = Memory::with_program(&[0xE6, 0x20]);
     mem.write_u8(0x20, 41);
@@ -229,11 +256,46 @@ fn test_0xe6_inc() {
 }
 
 #[test]
-fn test_0xa4_ldy() {
-    let mem = Memory::with_program(&[0xA4, 0xFF]);
+fn test_0xe6_inc_zero_flag() {
+    let mut mem = Memory::with_program(&[0xE6, 0x20]);
+    mem.write_u8(0x20, 0xFF);
     let mut cpu = CPU::new(mem);
     cpu.tick();
-    assert_eq!(cpu.y, 0xFF);
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0xe6_inc_negative_flag() {
+    let mut mem = Memory::with_program(&[0xE6, 0x20]);
+    mem.write_u8(0x20, 0x7F);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0xa4_ldy() {
+    let mem = Memory::with_program(&[0xA4, 42]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert_eq!(cpu.y, 42);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0xa4_ldy_zero_flag() {
+    let mem = Memory::with_program(&[0xA4, 0x00]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0x_a4_ldy_negative_flag() {
+    let mem = Memory::with_program(&[0xA4, 0x80]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
 }
 
 #[test]
@@ -243,6 +305,25 @@ fn test_0xc8_iny() {
     cpu.y = 41;
     cpu.tick();
     assert_eq!(cpu.y, 42);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0xc8_iny_zero_flag() {
+    let mem = Memory::with_program(&[0xC8]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 0xFF;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0xc8_iny_negative_flag() {
+    let mem = Memory::with_program(&[0xC8]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 0x7F;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
 }
 
 fn main() {
