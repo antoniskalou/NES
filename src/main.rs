@@ -1,11 +1,18 @@
+const ROM_BASE_ADDRESS: u16 = 0x8000;
 const MEMORY_SIZE: usize = 0xFFFF;
 
 #[derive(Debug)]
 struct Memory([u8; MEMORY_SIZE]);
 
 impl Memory {
-    pub fn new() -> Memory {
+    pub fn new() -> Self {
         Memory([0; MEMORY_SIZE])
+    }
+
+    pub fn with_program(rom: &[u8]) -> Self {
+        let mut mem = Memory::new();
+        mem.load(rom, ROM_BASE_ADDRESS);
+        mem
     }
 
     pub fn load(&mut self, src: &[u8], pos: u16) {
@@ -40,10 +47,17 @@ struct CPU {
     memory: Memory,
 }
 
+// FIXME: only zero-page access currently supported
 #[derive(Debug)]
 enum Instruction {
+    ForceBreak,
+    AddAccumulator(u8),
     LoadAccumulator(u8),
-    Invalid(u8),
+    StoreAccumulator(u8),
+    IncrementMemory(u8),
+    LoadY(u8),
+    IncrementY,
+    Illegal(u8),
 }
 
 impl CPU {
@@ -65,19 +79,43 @@ impl CPU {
         opcode
     }
 
+    // may step PC if opcode requires data
     fn decode(&mut self, opcode: u8) -> Instruction {
         use Instruction::*;
         match opcode {
+            0x00 => ForceBreak,
             0xA9 => LoadAccumulator(self.fetch()),
-            _ => Invalid(opcode)
+            0x65 => AddAccumulator(self.fetch()),
+            0x85 => StoreAccumulator(self.fetch()),
+            0xA4 => LoadY(self.fetch()),
+            0xC8 => IncrementY,
+            0xE6 => IncrementMemory(self.fetch()),
+            _ => Illegal(opcode)
         }
     }
 
     fn execute(&mut self, inst: Instruction) {
         use Instruction::*;
         match inst {
-            LoadAccumulator(param) => {
-                self.acc = param;
+            ForceBreak => {
+                // TODO
+                // loop forever for now, until we come up with a better
+                // way of handling this
+                loop {}
+            }
+            AddAccumulator(addr) => {
+                self.acc += self.memory.read_u8(addr as u16);
+
+                if self.acc == 0 {
+                    self.sr |= 0b0000_0010;
+                } else {
+                    self.sr &= 0b1111_1101;
+                }
+                // TODO: carry flag
+                // TODO: negative flag
+            }
+            LoadAccumulator(data) => {
+                self.acc = data;
 
                 if self.acc == 0 {
                     // TODO: make a nice way of setting flags
@@ -92,7 +130,23 @@ impl CPU {
                     self.sr &= 0b0111_1111;
                 }
             }
-            Invalid(opcode) => panic!("invalid opcode: 0x{:02X}", opcode)
+            StoreAccumulator(addr) => {
+                self.memory.write_u8(addr as u16, self.acc)
+            }
+            IncrementMemory(addr) => {
+                let data = self.memory.read_u8(addr as u16);
+                // TODO: handle flags & overflow
+                self.memory.write_u8(addr as u16, data + 1);
+            }
+            LoadY(data) => {
+                self.y = data;
+                // TODO: flags
+            }
+            IncrementY => {
+                self.y += 1;
+                // TODO: flags
+            }
+            Illegal(opcode) => panic!("illegal opcode: 0x{:02X}", opcode)
         }
     }
 
@@ -104,9 +158,13 @@ impl CPU {
 }
 
 #[test]
+fn test_0x00_brk() {
+    // TODO
+}
+
+#[test]
 fn test_0xa9_lda_immediate() {
-    let mut mem = Memory::new();
-    mem.load(&[0xA9, 0x05], 0x8000);
+    let mem = Memory::with_program(&[0xA9, 0x05]);
     let mut cpu = CPU::new(mem);
     cpu.tick();
     assert_eq!(cpu.acc, 0x05);
@@ -116,11 +174,65 @@ fn test_0xa9_lda_immediate() {
 
 #[test]
 fn test_0xa9_lda_zero_flag() {
-    let mut mem = Memory::new();
-    mem.load(&[0xA9, 0x00], 0x8000);
+    let mem = Memory::with_program(&[0xA9, 0x00]);
     let mut cpu = CPU::new(mem);
     cpu.tick();
     assert_eq!(cpu.sr & 0b0000_0010, 0b10);
+}
+
+#[test]
+fn test_0x85_sta() {
+    let mem = Memory::with_program(&[0x85, 0xFF]);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 42;
+    cpu.tick();
+    assert_eq!(cpu.memory.read_u8(0xFF), 42);
+}
+
+#[test]
+fn test_0x65_adc() {
+    let mut mem = Memory::with_program(&[0x65, 0x20]);
+    mem.write_u8(0x20, 2);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 40;
+    cpu.tick();
+    assert_eq!(cpu.sr & 0b0000_0010, 0);
+    assert_eq!(cpu.acc, 42);
+}
+
+#[test]
+fn test_0x65_adc_zero_flag() {
+    let mem = Memory::with_program(&[0x65, 0x00]);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0;
+    cpu.tick();
+    assert_eq!(cpu.sr & 0b0000_0010, 0b10);
+}
+
+#[test]
+fn test_0xe6_inc() {
+    let mut mem = Memory::with_program(&[0xE6, 0x20]);
+    mem.write_u8(0x20, 41);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert_eq!(cpu.memory.read_u8(0x20), 42);
+}
+
+#[test]
+fn test_0xa4_ldy() {
+    let mem = Memory::with_program(&[0xA4, 0xFF]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert_eq!(cpu.y, 0xFF);
+}
+
+#[test]
+fn test_0xc8_iny() {
+    let mem = Memory::with_program(&[0xC8]);
+    let mut cpu = CPU::new(mem);
+    cpu.y = 41;
+    cpu.tick();
+    assert_eq!(cpu.y, 42);
 }
 
 fn main() {
@@ -135,10 +247,9 @@ fn main() {
         0xC8,       // INY      -> Y=#$13
         0x00,       // BRK
     ];
-    let mut memory = Memory::new();
-    memory.load(&program, 0x8000);
-
+    let memory = Memory::with_program(&program);
     let mut cpu = CPU::new(memory);
-    cpu.tick();
-    println!("Hello CPU: {:?}", cpu);
+    loop {
+        cpu.tick();
+    }
 }
