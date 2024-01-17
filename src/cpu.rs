@@ -226,6 +226,10 @@ impl CPU {
 mod tests {
     use super::*;
 
+    fn program(bytes: &[u8]) -> CPU {
+        CPU::new(Memory::with_program(bytes))
+    }
+
     #[test]
     fn test_0x00_brk() {
         // TODO
@@ -243,8 +247,7 @@ mod tests {
 
     #[test]
     fn test_0x06_asl_zero_flag() {
-        let mem = Memory::with_program(&[0x06, 0x00]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x06, 0x00]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
@@ -271,8 +274,7 @@ mod tests {
 
     #[test]
     fn test_0x18_clc() {
-        let mem = Memory::with_program(&[0x18]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x18]);
         cpu.sr.set(Status::C, true);
         cpu.tick();
         assert_eq!(cpu.sr.contains(Status::C), false);
@@ -280,8 +282,7 @@ mod tests {
 
     #[test]
     fn test_0xd8_cld() {
-        let mem = Memory::with_program(&[0xD8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xD8]);
         cpu.sr.set(Status::D, true);
         cpu.tick();
         assert_eq!(cpu.sr.contains(Status::D), false);
@@ -289,8 +290,7 @@ mod tests {
 
     #[test]
     fn test_0x58_cli() {
-        let mem = Memory::with_program(&[0x58]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x58]);
         cpu.sr.set(Status::I, true);
         cpu.tick();
         assert_eq!(cpu.sr.contains(Status::I), false);
@@ -298,8 +298,7 @@ mod tests {
 
     #[test]
     fn test_0xb8_clv() {
-        let mem = Memory::with_program(&[0xB8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xB8]);
         cpu.sr.set(Status::V, true);
         cpu.tick();
         assert_eq!(cpu.sr.contains(Status::V), false);
@@ -318,8 +317,7 @@ mod tests {
 
     #[test]
     fn test_0x25_and_zero_flag() {
-        let mem = Memory::with_program(&[0x25, 0x00]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x25, 0]);
         cpu.acc = 0;
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
@@ -337,42 +335,37 @@ mod tests {
 
     #[test]
     fn test_0xa9_lda_immediate() {
-        let mem = Memory::with_program(&[0xA9, 0x05]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA9, 0x40]);
         cpu.tick();
-        assert_eq!(cpu.acc, 0x05);
+        assert_eq!(cpu.acc, 0x40);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let mem = Memory::with_program(&[0xA9, 0x00]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA9, 0x00]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
     fn test_0xa9_lda_negative_flag() {
-        let mem = Memory::with_program(&[0xA9, 0x80]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA9, 0x80]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
 
     #[test]
     fn test_0x85_sta() {
-        let mem = Memory::with_program(&[0x85, 0xFF]);
-        let mut cpu = CPU::new(mem);
-        cpu.acc = 42;
+        let mut cpu = program(&[0x85, 0xFF]);
+        cpu.acc = 0xFF;
         cpu.tick();
-        assert_eq!(cpu.memory.read_u8(0xFF), 42);
+        assert_eq!(cpu.memory.read_u8(0xFF), 0xFF);
     }
 
     #[test]
     fn test_0x90_bcc_with_carry() {
-        let mem = Memory::with_program(&[0x90, 0x00, 0xC8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x90, 0x00, 0xC8]);
         cpu.sr.set(Status::C, true);
         cpu.tick();
         cpu.tick();
@@ -381,12 +374,11 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_offset() {
-        let mem = Memory::with_program(&[
+        let mut cpu = program(&[
             0x90, 0x02,
             0xFF, 0xFF, // should never be reached
             0xC8,
         ]);
-        let mut cpu = CPU::new(mem);
         cpu.sr.set(Status::C, true);
         cpu.tick();
         cpu.tick();
@@ -395,12 +387,11 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_no_carry() {
-        let mem = Memory::with_program(&[
+        let mut cpu = program(&[
             0x90, 0x02,
             0xA9, 0xFF,
             0xC8, // shouldn't be reached in test
         ]);
-        let mut cpu = CPU::new(mem);
         cpu.sr.set(Status::C, false);
         cpu.tick();
         cpu.tick();
@@ -412,18 +403,17 @@ mod tests {
     #[test]
     fn test_0x65_adc() {
         let mut mem = Memory::with_program(&[0x65, 0x20]);
-        mem.write_u8(0x20, 2);
+        mem.write_u8(0x20, 0x40);
         let mut cpu = CPU::new(mem);
-        cpu.acc = 40;
+        cpu.acc = 0x04;
         cpu.tick();
-        assert_eq!(cpu.acc, 42);
+        assert_eq!(cpu.acc, 0x44);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0x65_adc_zero_flag() {
-        let mem = Memory::with_program(&[0x65, 0x00]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x65, 0x00]);
         cpu.acc = 0;
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
@@ -452,10 +442,10 @@ mod tests {
     #[test]
     fn test_0xe6_inc() {
         let mut mem = Memory::with_program(&[0xE6, 0x20]);
-        mem.write_u8(0x20, 41);
+        mem.write_u8(0x20, 0x40);
         let mut cpu = CPU::new(mem);
         cpu.tick();
-        assert_eq!(cpu.memory.read_u8(0x20), 42);
+        assert_eq!(cpu.memory.read_u8(0x20), 0x41);
     }
 
     #[test]
@@ -478,68 +468,60 @@ mod tests {
 
     #[test]
     fn test_0xa6_ldx() {
-        let mem = Memory::with_program(&[0xA6, 42]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA6, 0x40]);
         cpu.tick();
-        assert_eq!(cpu.x, 42);
+        assert_eq!(cpu.x, 0x40);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0xa6_ldx_zero_flag() {
-        let mem = Memory::with_program(&[0xA6, 0]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA6, 0]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
     fn test_0xa6_ldx_negative_flag() {
-        let mem = Memory::with_program(&[0xA6, 0x80]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA6, 0x80]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
 
     #[test]
     fn test_0xa4_ldy() {
-        let mem = Memory::with_program(&[0xA4, 42]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA4, 0x40]);
         cpu.tick();
-        assert_eq!(cpu.y, 42);
+        assert_eq!(cpu.y, 0x40);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0xa4_ldy_zero_flag() {
-        let mem = Memory::with_program(&[0xA4, 0x00]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA4, 0x00]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
     fn test_0xa4_ldy_negative_flag() {
-        let mem = Memory::with_program(&[0xA4, 0x80]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xA4, 0x80]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
 
     #[test]
     fn test_0xe8_inx() {
-        let mem = Memory::with_program(&[0xE8]);
-        let mut cpu = CPU::new(mem);
-        cpu.x = 41;
+        let mut cpu = program(&[0xE8]);
+        cpu.x = 0x40;
         cpu.tick();
-        assert_eq!(cpu.x, 42);
+        assert_eq!(cpu.x, 0x41);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0xe8_inx_zero_flag() {
-        let mem = Memory::with_program(&[0xE8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xE8]);
         cpu.x = 0xFF;
         cpu.tick();
         assert_eq!(cpu.x, 0);
@@ -548,8 +530,7 @@ mod tests {
 
     #[test]
     fn test_0xe8_inx_negative_flag() {
-        let mem = Memory::with_program(&[0xE8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xE8]);
         cpu.x = 0x7F;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
@@ -557,18 +538,16 @@ mod tests {
 
     #[test]
     fn test_0xc8_iny() {
-        let mem = Memory::with_program(&[0xC8]);
-        let mut cpu = CPU::new(mem);
-        cpu.y = 41;
+        let mut cpu = program(&[0xC8]);
+        cpu.y = 0x40;
         cpu.tick();
-        assert_eq!(cpu.y, 42);
+        assert_eq!(cpu.y, 0x41);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
     fn test_0xc8_iny_zero_flag() {
-        let mem = Memory::with_program(&[0xC8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xC8]);
         cpu.y = 0xFF;
         cpu.tick();
         assert_eq!(cpu.y, 0);
@@ -577,8 +556,7 @@ mod tests {
 
     #[test]
     fn test_0xc8_iny_negative_flag() {
-        let mem = Memory::with_program(&[0xC8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xC8]);
         cpu.y = 0x7F;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
@@ -586,8 +564,7 @@ mod tests {
 
     #[test]
     fn test_0xca_dex() {
-        let mem = Memory::with_program(&[0xCA]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xCA]);
         cpu.x = 2;
         cpu.tick();
         assert_eq!(cpu.x, 1);
@@ -596,8 +573,7 @@ mod tests {
 
     #[test]
     fn test_0xca_dex_underflow() {
-        let mem = Memory::with_program(&[0xCA]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xCA]);
         cpu.x = 0;
         cpu.tick();
         assert_eq!(cpu.x, 0xFF);
@@ -605,8 +581,7 @@ mod tests {
 
     #[test]
     fn test_0xca_dex_zero_flag() {
-        let mem = Memory::with_program(&[0xCA]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xCA]);
         cpu.x = 1;
         cpu.tick();
         assert_eq!(cpu.x, 0);
@@ -615,8 +590,7 @@ mod tests {
 
     #[test]
     fn test_0xca_dex_negative_flag() {
-        let mem = Memory::with_program(&[0xCA]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xCA]);
         cpu.x = 0xFF;
         cpu.tick();
         assert_eq!(cpu.x, 0xFE);
@@ -625,8 +599,7 @@ mod tests {
 
     #[test]
     fn test_0x88_dey() {
-        let mem = Memory::with_program(&[0x88]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x88]);
         cpu.y = 2;
         cpu.tick();
         assert_eq!(cpu.y, 1);
@@ -635,8 +608,7 @@ mod tests {
 
     #[test]
     fn test_0x88_dey_underflow() {
-        let mem = Memory::with_program(&[0x88]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x88]);
         cpu.y = 0;
         cpu.tick();
         assert_eq!(cpu.y, 0xFF);
@@ -644,8 +616,7 @@ mod tests {
 
     #[test]
     fn test_0x88_dey_zero_flag() {
-        let mem = Memory::with_program(&[0x88]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x88]);
         cpu.y = 1;
         cpu.tick();
         assert_eq!(cpu.y, 0);
@@ -654,8 +625,7 @@ mod tests {
 
     #[test]
     fn test_0x88_dey_negative_flag() {
-        let mem = Memory::with_program(&[0x88]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x88]);
         cpu.y = 0xFF;
         cpu.tick();
         assert_eq!(cpu.y, 0xFE);
@@ -664,16 +634,14 @@ mod tests {
 
     #[test]
     fn test_0xea_nop() {
-        let mem = Memory::with_program(&[0xEA]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xEA]);
         cpu.tick();
         // as long as we don't panic, we're good
     }
 
     #[test]
     fn test_0x38_sec() {
-        let mem = Memory::with_program(&[0x38]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x38]);
         cpu.sr.set(Status::C, false);
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
@@ -681,8 +649,7 @@ mod tests {
 
     #[test]
     fn test_0xf8_sed() {
-        let mem = Memory::with_program(&[0xF8]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xF8]);
         cpu.sr.set(Status::D, false);
         cpu.tick();
         assert!(cpu.sr.contains(Status::D));
@@ -690,8 +657,7 @@ mod tests {
 
     #[test]
     fn test_0x78_sei() {
-        let mem = Memory::with_program(&[0x78]);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x78]);
         cpu.sr.set(Status::I, false);
         cpu.tick();
         assert!(cpu.sr.contains(Status::I));
