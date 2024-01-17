@@ -75,8 +75,11 @@ struct CPU {
 // FIXME: only zero-page access currently supported
 enum Instruction {
     BRK,
+    AND(u8),
+    ASL(u8),
     ADC(u8),
     STA(u8),
+    BCC(u8),
     LDY(u8),
     LDA(u8),
     INY,
@@ -108,8 +111,11 @@ impl CPU {
         use Instruction::*;
         match opcode {
             0x00 => BRK,
+            0x06 => ASL(self.fetch()),
+            0x25 => AND(self.fetch()),
             0x65 => ADC(self.fetch()),
             0x85 => STA(self.fetch()),
+            0x90 => BCC(self.fetch()),
             0xA4 => LDY(self.fetch()),
             0xA9 => LDA(self.fetch()),
             0xC8 => INY,
@@ -127,6 +133,18 @@ impl CPU {
                 // way of handling this
                 loop {}
             }
+            ASL(addr) => {
+                let data = self.memory.read_u8(addr as u16);
+                self.sr.set(Status::C, (data >> 7) & 1 > 0);
+                let x = data.wrapping_shl(1);
+                self.sr.set_zn_flags(x);
+                self.memory.write_u8(addr as u16, x);
+            }
+            AND(addr) => {
+                let data = self.memory.read_u8(addr as u16);
+                self.acc &= data;
+                self.sr.set_zn_flags(self.acc);
+            }
             ADC(addr) => {
                 let data = self.memory.read_u8(addr as u16);
                 let (x, o) = self.acc.overflowing_add(data);
@@ -141,6 +159,11 @@ impl CPU {
             }
             STA(addr) => {
                 self.memory.write_u8(addr as u16, self.acc)
+            }
+            BCC(offset) => {
+                if self.sr.contains(Status::C) {
+                    self.pc = self.pc.wrapping_add(offset as u16);
+                }
             }
             INC(addr) => {
                 let data = self.memory.read_u8(addr as u16);
@@ -170,6 +193,74 @@ impl CPU {
 #[test]
 fn test_0x00_brk() {
     // TODO
+}
+
+#[test]
+fn test_0x06_asl() {
+    let mut mem = Memory::with_program(&[0x06, 0x20]);
+    mem.write_u8(0x20, 0b0000_0001);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert_eq!(cpu.memory.read_u8(0x20), 0b0000_0010);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0x06_asl_zero_flag() {
+    let mem = Memory::with_program(&[0x06, 0x00]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0x06_asl_negative_flag() {
+    let mut mem = Memory::with_program(&[0x06, 0x20]);
+    mem.write_u8(0x20, 0x40);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    // multiplies by 2
+    assert_eq!(cpu.memory.read_u8(0x20), 0x80);
+    assert!(cpu.sr.contains(Status::N));
+}
+
+#[test]
+fn test_0x06_asl_carry_flag() {
+    let mut mem = Memory::with_program(&[0x06, 0x20]);
+    mem.write_u8(0x20, 0b1000_0000);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::C));
+}
+
+#[test]
+fn test_0x25_and() {
+    let mut mem = Memory::with_program(&[0x25, 0x20]);
+    mem.write_u8(0x20, 0b1010);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0b1111;
+    cpu.tick();
+    assert_eq!(cpu.acc, 0b1010);
+    assert!(cpu.sr.is_empty());
+}
+
+#[test]
+fn test_0x25_and_zero_flag() {
+    let mem = Memory::with_program(&[0x25, 0x00]);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0x25_and_negative_flag() {
+    let mut mem = Memory::with_program(&[0x25, 0x20]);
+    mem.write_u8(0x20, 0xFF);
+    let mut cpu = CPU::new(mem);
+    cpu.acc = 0x80;
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
 }
 
 #[test]
@@ -204,6 +295,46 @@ fn test_0x85_sta() {
     cpu.acc = 42;
     cpu.tick();
     assert_eq!(cpu.memory.read_u8(0xFF), 42);
+}
+
+#[test]
+fn test_0x90_bcc_with_carry() {
+    let mem = Memory::with_program(&[0x90, 0x00, 0xC8]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::C, true);
+    cpu.tick();
+    cpu.tick();
+    assert_eq!(cpu.y, 1);
+}
+
+#[test]
+fn test_0x90_bcc_offset() {
+    let mem = Memory::with_program(&[
+        0x90, 0x02,
+        0x00, 0x00, // should never be reached
+        0xC8,
+    ]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::C, true);
+    cpu.tick();
+    cpu.tick();
+    assert_eq!(cpu.y, 1);
+}
+
+#[test]
+fn test_0x90_bcc_no_carry() {
+    let mem = Memory::with_program(&[
+        0x90, 0x02,
+        0xA9, 0xFF,
+        0xC8, // shouldn't be reached in test
+    ]);
+    let mut cpu = CPU::new(mem);
+    cpu.sr.set(Status::C, false);
+    cpu.tick();
+    cpu.tick();
+    assert_eq!(cpu.acc, 0xFF);
+    // shouldn't have run INY
+    assert_eq!(cpu.y, 0);
 }
 
 #[test]
