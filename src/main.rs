@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 const ROM_BASE_ADDRESS: u16 = 0x8000;
 const MEMORY_SIZE: usize = 0xFFFF;
 
@@ -29,6 +31,20 @@ impl Memory {
     }
 }
 
+bitflags! {
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub struct Status: u8 {
+        const C = 0b0000_0001; // Carry
+        const Z = 0b0000_0010; // Zero
+        const I = 0b0000_0100; // Disable Interrupt
+        const D = 0b0000_1000; // Decimal Mode
+        const B = 0b0001_0000; // Break
+        const U = 0b0010_0000; // Unused
+        const V = 0b0100_0000; // Overflow
+        const N = 0b1000_0000; // Negative
+    }
+}
+
 // naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
 #[derive(Debug)]
 struct CPU {
@@ -39,7 +55,7 @@ struct CPU {
     // Y register
     y: u8,
     // status register [NV-BDIZC]
-    sr: u8,
+    sr: Status,
     // stacck pointer
     sp: u8,
     // program counter
@@ -47,16 +63,17 @@ struct CPU {
     memory: Memory,
 }
 
-// FIXME: only zero-page access currently supported
 #[derive(Debug)]
+#[allow(clippy::upper_case_acronyms)]
+// FIXME: only zero-page access currently supported
 enum Instruction {
-    ForceBreak,
-    AddAccumulator(u8),
-    LoadAccumulator(u8),
-    StoreAccumulator(u8),
-    IncrementMemory(u8),
-    LoadY(u8),
-    IncrementY,
+    BRK,
+    ADC(u8),
+    STA(u8),
+    LDY(u8),
+    LDA(u8),
+    INY,
+    INC(u8),
     Illegal(u8),
 }
 
@@ -66,7 +83,7 @@ impl CPU {
             acc: 0,
             x: 0,
             y: 0,
-            sr: 0,
+            sr: Status::U & Status::I,
             sp: 0,
             pc: 0x8000,
             memory,
@@ -83,13 +100,13 @@ impl CPU {
     fn decode(&mut self, opcode: u8) -> Instruction {
         use Instruction::*;
         match opcode {
-            0x00 => ForceBreak,
-            0xA9 => LoadAccumulator(self.fetch()),
-            0x65 => AddAccumulator(self.fetch()),
-            0x85 => StoreAccumulator(self.fetch()),
-            0xA4 => LoadY(self.fetch()),
-            0xC8 => IncrementY,
-            0xE6 => IncrementMemory(self.fetch()),
+            0x00 => BRK,
+            0x65 => ADC(self.fetch()),
+            0x85 => STA(self.fetch()),
+            0xA4 => LDY(self.fetch()),
+            0xA9 => LDA(self.fetch()),
+            0xC8 => INY,
+            0xE6 => INC(self.fetch()),
             _ => Illegal(opcode)
         }
     }
@@ -97,52 +114,38 @@ impl CPU {
     fn execute(&mut self, inst: Instruction) {
         use Instruction::*;
         match inst {
-            ForceBreak => {
+            BRK => {
                 // TODO
-                // loop forever for now, until we come up with a better
+                // loop forever until we come up with a better
                 // way of handling this
                 loop {}
             }
-            AddAccumulator(addr) => {
+            ADC(addr) => {
                 self.acc += self.memory.read_u8(addr as u16);
 
-                if self.acc == 0 {
-                    self.sr |= 0b0000_0010;
-                } else {
-                    self.sr &= 0b1111_1101;
-                }
+                self.sr.set(Status::Z, self.acc == 0);
+                self.sr.set(Status::N, self.acc & 0b1000_0000 != 0);
                 // TODO: carry flag
-                // TODO: negative flag
             }
-            LoadAccumulator(data) => {
+            LDA(data) => {
                 self.acc = data;
 
-                if self.acc == 0 {
-                    // TODO: make a nice way of setting flags
-                    self.sr |= 0b0000_0010;
-                } else {
-                    self.sr &= 0b1111_1101;
-                }
-
-                if self.acc & 0b1000_0000 != 0 {
-                    self.sr |= 0b1000_0000;
-                } else {
-                    self.sr &= 0b0111_1111;
-                }
+                self.sr.set(Status::Z, self.acc == 0);
+                self.sr.set(Status::N, self.acc & 0b1000_0000 != 0);
             }
-            StoreAccumulator(addr) => {
+            STA(addr) => {
                 self.memory.write_u8(addr as u16, self.acc)
             }
-            IncrementMemory(addr) => {
+            INC(addr) => {
                 let data = self.memory.read_u8(addr as u16);
                 // TODO: handle flags & overflow
                 self.memory.write_u8(addr as u16, data + 1);
             }
-            LoadY(data) => {
+            LDY(data) => {
                 self.y = data;
                 // TODO: flags
             }
-            IncrementY => {
+            INY => {
                 self.y += 1;
                 // TODO: flags
             }
@@ -168,8 +171,7 @@ fn test_0xa9_lda_immediate() {
     let mut cpu = CPU::new(mem);
     cpu.tick();
     assert_eq!(cpu.acc, 0x05);
-    assert_eq!(cpu.sr & 0b0000_0010, 0);
-    assert_eq!(cpu.sr & 0b1000_0000, 0);
+    assert!(cpu.sr.is_empty());
 }
 
 #[test]
@@ -177,7 +179,15 @@ fn test_0xa9_lda_zero_flag() {
     let mem = Memory::with_program(&[0xA9, 0x00]);
     let mut cpu = CPU::new(mem);
     cpu.tick();
-    assert_eq!(cpu.sr & 0b0000_0010, 0b10);
+    assert!(cpu.sr.contains(Status::Z));
+}
+
+#[test]
+fn test_0xa9_lda_negative_flag() {
+    let mem = Memory::with_program(&[0xA9, 0xFF]);
+    let mut cpu = CPU::new(mem);
+    cpu.tick();
+    assert!(cpu.sr.contains(Status::N));
 }
 
 #[test]
@@ -196,8 +206,8 @@ fn test_0x65_adc() {
     let mut cpu = CPU::new(mem);
     cpu.acc = 40;
     cpu.tick();
-    assert_eq!(cpu.sr & 0b0000_0010, 0);
     assert_eq!(cpu.acc, 42);
+    assert!(cpu.sr.is_empty());
 }
 
 #[test]
@@ -206,7 +216,7 @@ fn test_0x65_adc_zero_flag() {
     let mut cpu = CPU::new(mem);
     cpu.acc = 0;
     cpu.tick();
-    assert_eq!(cpu.sr & 0b0000_0010, 0b10);
+    assert!(cpu.sr.contains(Status::Z));
 }
 
 #[test]
