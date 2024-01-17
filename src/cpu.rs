@@ -44,23 +44,28 @@ pub struct CPU {
 #[allow(clippy::upper_case_acronyms)]
 // FIXME: only zero-page access currently supported
 enum Instruction {
-    BRK,
+    ADC(u8),
     AND(u8),
     ASL(u8),
-    ADC(u8),
+    BRK,
+    BCC(u8),
     CLC,
     CLD,
     CLI,
     CLV,
     DEX,
     DEY,
-    STA(u8),
-    BCC(u8),
-    LDY(u8),
-    LDA(u8),
+    INC(u8),
     INX,
     INY,
-    INC(u8),
+    LDA(u8), // Immediate
+    LDX(u8), // Immediate
+    LDY(u8), // Immediate
+    NOP,
+    SEC,
+    SED,
+    SEI,
+    STA(u8),
     Illegal(u8),
 }
 
@@ -91,12 +96,15 @@ impl CPU {
             0x06 => ASL(self.fetch()),
             0x18 => CLC,
             0x25 => AND(self.fetch()),
+            0x38 => SEC,
             0x58 => CLI,
             0x65 => ADC(self.fetch()),
+            0x78 => SEI,
             0x85 => STA(self.fetch()),
             0x88 => DEY,
             0x90 => BCC(self.fetch()),
             0xA4 => LDY(self.fetch()),
+            0xA6 => LDX(self.fetch()),
             0xA9 => LDA(self.fetch()),
             0xB8 => CLV,
             0xC8 => INY,
@@ -104,6 +112,8 @@ impl CPU {
             0xD8 => CLD,
             0xE6 => INC(self.fetch()),
             0xE8 => INX,
+            0xEA => NOP,
+            0xF8 => SED,
             _ => Illegal(opcode)
         }
     }
@@ -161,6 +171,15 @@ impl CPU {
                 self.acc = data;
                 self.sr.set_zn_flags(self.acc);
             }
+            SEC => {
+                self.sr.set(Status::C, true);
+            }
+            SED => {
+                self.sr.set(Status::D, true);
+            }
+            SEI => {
+                self.sr.set(Status::I, true);
+            }
             STA(addr) => {
                 self.memory.write_u8(addr as u16, self.acc)
             }
@@ -175,10 +194,15 @@ impl CPU {
                 self.memory.write_u8(addr as u16, x);
                 self.sr.set_zn_flags(x);
             }
+            LDX(data) => {
+                self.x = data;
+                self.sr.set_zn_flags(self.x);
+            }
             LDY(data) => {
                 self.y = data;
                 self.sr.set_zn_flags(self.y);
             }
+            NOP => {}
             INX => {
                 self.x = self.x.wrapping_add(1);
                 self.sr.set_zn_flags(self.x);
@@ -359,7 +383,7 @@ mod tests {
     fn test_0x90_bcc_offset() {
         let mem = Memory::with_program(&[
             0x90, 0x02,
-            0x00, 0x00, // should never be reached
+            0xFF, 0xFF, // should never be reached
             0xC8,
         ]);
         let mut cpu = CPU::new(mem);
@@ -447,6 +471,31 @@ mod tests {
     fn test_0xe6_inc_negative_flag() {
         let mut mem = Memory::with_program(&[0xE6, 0x20]);
         mem.write_u8(0x20, 0x7F);
+        let mut cpu = CPU::new(mem);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xa6_ldx() {
+        let mem = Memory::with_program(&[0xA6, 42]);
+        let mut cpu = CPU::new(mem);
+        cpu.tick();
+        assert_eq!(cpu.x, 42);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xa6_ldx_zero_flag() {
+        let mem = Memory::with_program(&[0xA6, 0]);
+        let mut cpu = CPU::new(mem);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0xa6_ldx_negative_flag() {
+        let mem = Memory::with_program(&[0xA6, 0x80]);
         let mut cpu = CPU::new(mem);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
@@ -611,5 +660,40 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.y, 0xFE);
         assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xea_nop() {
+        let mem = Memory::with_program(&[0xEA]);
+        let mut cpu = CPU::new(mem);
+        cpu.tick();
+        // as long as we don't panic, we're good
+    }
+
+    #[test]
+    fn test_0x38_sec() {
+        let mem = Memory::with_program(&[0x38]);
+        let mut cpu = CPU::new(mem);
+        cpu.sr.set(Status::C, false);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0xf8_sed() {
+        let mem = Memory::with_program(&[0xF8]);
+        let mut cpu = CPU::new(mem);
+        cpu.sr.set(Status::D, false);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::D));
+    }
+
+    #[test]
+    fn test_0x78_sei() {
+        let mem = Memory::with_program(&[0x78]);
+        let mut cpu = CPU::new(mem);
+        cpu.sr.set(Status::I, false);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::I));
     }
 }
