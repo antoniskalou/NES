@@ -1,5 +1,5 @@
-const ROM_BASE_ADDRESS: u16 = 0x8000;
-const MEMORY_SIZE: usize = 0xFFFF;
+// 2KB CPU RAM
+const MEMORY_SIZE: usize = 0x0800;
 
 #[derive(Debug)]
 pub struct Memory([u8; MEMORY_SIZE]);
@@ -11,7 +11,7 @@ impl Memory {
 
     pub fn with_program(rom: &[u8]) -> Self {
         let mut mem = Memory::new();
-        mem.load(rom, ROM_BASE_ADDRESS);
+        mem.load(rom, 0x00);
         mem
     }
 

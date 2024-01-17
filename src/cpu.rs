@@ -77,7 +77,7 @@ impl CPU {
             y: 0,
             sr: Status::U & Status::I,
             sp: 0xFD,
-            pc: 0x8000,
+            pc: 0,
             memory,
         }
     }
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_0x06_asl_zero_flag() {
-        let mut cpu = program(&[0x06, 0x00]);
+        let mut cpu = program(&[0x06, 0x20]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_0x65_adc_zero_flag() {
-        let mut cpu = program(&[0x65, 0x00]);
+        let mut cpu = program(&[0x65, 0x20]);
         cpu.acc = 0;
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
