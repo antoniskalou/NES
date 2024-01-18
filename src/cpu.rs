@@ -66,6 +66,10 @@ enum Instruction {
     SED,
     SEI,
     STA(u8),
+    TAX,
+    TAY,
+    TXA,
+    TYA,
     Illegal(u8),
 }
 
@@ -102,10 +106,14 @@ impl CPU {
             0x78 => SEI,
             0x85 => STA(self.fetch()),
             0x88 => DEY,
+            0x8A => TXA,
             0x90 => BCC(self.fetch()),
+            0x98 => TYA,
             0xA4 => LDY(self.fetch()),
             0xA6 => LDX(self.fetch()),
+            0xA8 => TAY,
             0xA9 => LDA(self.fetch()),
+            0xAA => TAX,
             0xB8 => CLV,
             0xC8 => INY,
             0xCA => DEX,
@@ -210,6 +218,22 @@ impl CPU {
             INY => {
                 self.y = self.y.wrapping_add(1);
                 self.sr.set_zn_flags(self.y);
+            }
+            TAX => {
+                self.x = self.acc;
+                self.sr.set_zn_flags(self.x);
+            }
+            TAY => {
+                self.y = self.acc;
+                self.sr.set_zn_flags(self.y);
+            }
+            TXA => {
+                self.acc = self.x;
+                self.sr.set_zn_flags(self.acc);
+            }
+            TYA => {
+                self.acc = self.y;
+                self.sr.set_zn_flags(self.acc);
             }
             Illegal(opcode) => panic!("illegal opcode: 0x{:02X}", opcode)
         }
@@ -661,5 +685,117 @@ mod tests {
         cpu.sr.set(Status::I, false);
         cpu.tick();
         assert!(cpu.sr.contains(Status::I));
+    }
+
+    #[test]
+    fn test_0xaa_tax() {
+        let mut cpu = program(&[0xAA]);
+        cpu.x = 0x00;
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.x, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xaa_tax_zero_flag() {
+        let mut cpu = program(&[0xAA]);
+        cpu.x = 0x40;
+        cpu.acc = 0x00;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0xaa_tax_negative_flag() {
+        let mut cpu = program(&[0xAA]);
+        cpu.x = 0x00;
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xa8_tay() {
+        let mut cpu = program(&[0xA8]);
+        cpu.y = 0x00;
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.y, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xa8_tay_zero_flag() {
+        let mut cpu = program(&[0xA8]);
+        cpu.y = 0x40;
+        cpu.acc = 0x00;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0xa8_tay_negative_flag() {
+        let mut cpu = program(&[0xA8]);
+        cpu.y = 0x00;
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x8a_txa() {
+        let mut cpu = program(&[0x8A]);
+        cpu.acc = 0x00;
+        cpu.x = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x8a_txa_zero_flag() {
+        let mut cpu = program(&[0x8A]);
+        cpu.acc = 0x40;
+        cpu.x = 0x00;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x8a_txa_negative_flag() {
+        let mut cpu = program(&[0x8A]);
+        cpu.acc = 0x00;
+        cpu.x = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x98_txa() {
+        let mut cpu = program(&[0x98]);
+        cpu.acc = 0x00;
+        cpu.y = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x98_txa_zero_flag() {
+        let mut cpu = program(&[0x98]);
+        cpu.acc = 0x40;
+        cpu.y = 0x00;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x98_txa_negative_flag() {
+        let mut cpu = program(&[0x98]);
+        cpu.acc = 0x00;
+        cpu.y = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
     }
 }
