@@ -125,6 +125,23 @@ impl CPU {
         }
     }
 
+    fn read_mode_address(&self, mode: AddressingMode) -> u8 {
+        use AddressingMode::*;
+        match mode {
+            Immediate(data) => data,
+            ZeroPage(addr) => self.wram.read_u8(addr as u16),
+            ZeroPageX(addr) => {
+                let addr = addr + self.x;
+                self.wram.read_u8(addr as u16)
+            }
+            ZeroPageY(addr) => {
+                let addr = addr + self.y;
+                self.wram.read_u8(addr as u16)
+            }
+            _ => panic!("mode {:?} doesn't have an address", mode)
+        }
+    }
+
     fn fetch(&mut self) -> u8 {
         let opcode = self.rom.read_u8(self.pc);
         self.pc += 1;
@@ -140,6 +157,8 @@ impl CPU {
             0x06 => (ASL, ZeroPage(self.fetch())),
             0x18 => (CLC, Implicit),
             0x25 => (AND, ZeroPage(self.fetch())),
+            0x29 => (AND, Immediate(self.fetch())),
+            0x35 => (AND, ZeroPageX(self.fetch())),
             0x38 => (SEC, Implicit),
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
@@ -186,29 +205,13 @@ impl CPU {
                 self.sr.set_zn_flags(x);
                 self.wram.write_u8(addr as u16, x);
             }
-            (AND, ZeroPage(addr)) => {
-                let data = self.wram.read_u8(addr as u16);
+            (AND, mode) => {
+                let data = self.read_mode_address(mode);
                 self.acc &= data;
                 self.sr.set_zn_flags(self.acc);
             }
-            (ADC, Immediate(data)) => {
-                let (x, o) = self.acc.overflowing_add(data);
-                self.acc = x;
-                self.sr.set_zn_flags(self.acc);
-                self.sr.set(Status::C, o);
-                // TODO: overflow flag
-            }
-            (ADC, ZeroPage(addr)) => {
-                let data = self.wram.read_u8(addr as u16);
-                let (x, o) = self.acc.overflowing_add(data);
-                self.acc = x;
-                self.sr.set_zn_flags(self.acc);
-                self.sr.set(Status::C, o);
-                // TODO: overflow flag
-            }
-            (ADC, ZeroPageX(addr)) => {
-                let addr = addr + self.x;
-                let data = self.wram.read_u8(addr as u16);
+            (ADC, mode) => {
+                let data = self.read_mode_address(mode);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
                 self.sr.set_zn_flags(self.acc);
@@ -387,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x25_and() {
+    fn test_0x25_and_zpg() {
         let mut cpu = program(&[0x25, 0x20]);
         cpu.wram.write_u8(0x20, 0b1010);
         cpu.acc = 0b1111;
@@ -397,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x25_and_zero_flag() {
+    fn test_0x25_and_zpg_zero_flag() {
         let mut cpu = program(&[0x25, 0]);
         cpu.acc = 0;
         cpu.tick();
@@ -405,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x25_and_negative_flag() {
+    fn test_0x25_and_zpg_negative_flag() {
         let mut cpu = program(&[0x25, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.acc = 0x80;
@@ -414,7 +417,63 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa9_lda_immediate() {
+    fn test_0x29_and_imm() {
+        let mut cpu = program(&[0x29, 0b1010]);
+        cpu.acc = 0b1111;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b1010);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x29_and_imm_zero_flag() {
+        let mut cpu = program(&[0x29, 0]);
+        cpu.acc = 0;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x29_and_imm_negative_flag() {
+        let mut cpu = program(&[0x29, 0xFF]);
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x35_and_zpgx() {
+        let mut cpu = program(&[0x35, 0x10]);
+        cpu.wram.write_u8(0x20, 0b1010);
+        cpu.x = 0x10;
+        cpu.acc = 0b1111;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b1010);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x35_and_zpgx_zero_flag() {
+        let mut cpu = program(&[0x35, 0x20]);
+        cpu.wram.write_u8(0x20, 0);
+        cpu.x = 0;
+        cpu.acc = 0;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x35_and_zpgx_negative_flag() {
+        let mut cpu = program(&[0x35, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.x = 0;
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xa9_lda_imm() {
         let mut cpu = program(&[0xA9, 0x40]);
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
