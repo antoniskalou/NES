@@ -46,14 +46,19 @@ bitflags! {
 }
 
 impl Status {
+    fn set_n_flag(&mut self, val: u8) {
+        self.set(Status::N, val & 0x80 == 0x80);
+    }
+
     fn set_zn_flags(&mut self, val: u8) {
         self.set(Status::Z, val == 0);
-        self.set(Status::N, val & 0x80 == 0x80);
+        self.set_n_flag(val);
     }
 }
 
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms)]
+#[rustfmt::skip]
 enum Opcode {
     ADC, AND, ASL, BCC, BCS, BEQ, BIT, BMI, BNE, BPL, BRK, BVC, BVS, CLC, CLD,
     CLI, CLV, CMP, CPX, CPY, DEC, DEX, DEY, EOR, INC, INX, INY, JMP, JSR, LDA,
@@ -179,9 +184,12 @@ impl CPU {
             0xB5 => (LDA, ZeroPageX(self.fetch())),
             0xB6 => (LDX, ZeroPageY(self.fetch())),
             0xB8 => (CLV, Implicit),
+            0xC5 => (CMP, ZeroPage(self.fetch())),
             0xC6 => (DEC, ZeroPage(self.fetch())),
             0xC8 => (INY, Implicit),
+            0xC9 => (CMP, Immediate(self.fetch())),
             0xCA => (DEX, Implicit),
+            0xD5 => (CMP, ZeroPageX(self.fetch())),
             0xD6 => (DEC, ZeroPageX(self.fetch())),
             0xD8 => (CLD, Implicit),
             0xE6 => (INC, ZeroPage(self.fetch())),
@@ -235,6 +243,12 @@ impl CPU {
             }
             (CLV, Implicit) => {
                 self.sr.set(Status::V, false);
+            }
+            (CMP, mode) => {
+                let data = self.read_mode_address(&mode);
+                self.sr.set(Status::C, self.acc >= data);
+                self.sr.set(Status::Z, self.acc == data);
+                self.sr.set_n_flag(self.acc);
             }
             (DEC, mode) => {
                 let data = self.read_mode_address(&mode);
@@ -309,6 +323,7 @@ impl CPU {
                 self.sr.set_zn_flags(self.acc);
             }
             (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
+            // programming error
             inst => unreachable!("unhandled instruction: {:?}", inst),
         }
     }
@@ -659,7 +674,8 @@ mod tests {
     #[test]
     fn test_0x90_bcc_offset() {
         let mut cpu = program(&[
-            0x90, 0x02, 0xFF, 0xFF, // should never be reached
+            0x90, 0x02,
+            0xFF, 0xFF, // should never be reached
             0xC8,
         ]);
         cpu.sr.set(Status::C, true);
@@ -669,9 +685,16 @@ mod tests {
     }
 
     #[test]
+    fn test_0x90_bcc_negative_offset() {
+        // TODO
+    }
+
+    #[test]
     fn test_0x90_bcc_no_carry() {
         let mut cpu = program(&[
-            0x90, 0x02, 0xA9, 0xFF, 0xC8, // shouldn't be reached in test
+            0x90, 0x02,
+            0xA9, 0xFF,
+            0xC8, // shouldn't be reached in test
         ]);
         cpu.sr.set(Status::C, false);
         cpu.tick();
@@ -1281,5 +1304,113 @@ mod tests {
         cpu.y = 0x80;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xc9_cmp_imm_eq() {
+        let mut cpu = program(&[0xC9, 0x40]);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C | Status::Z)
+    }
+
+    #[test]
+    fn test_0xc9_cmp_imm_gt() {
+        let mut cpu = program(&[0xC9, 0x40]);
+        cpu.acc = 0x41;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0xc9_cmp_imm_lt() {
+        let mut cpu = program(&[0xC9, 0x41]);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xc9_cmp_imm_negative_flag() {
+        let mut cpu = program(&[0xC9, 0xFF]);
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xc5_cmp_zpg_eq() {
+        let mut cpu = program(&[0xC5, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C | Status::Z);
+    }
+
+    #[test]
+    fn test_0xc5_cmp_zpg_gt() {
+        let mut cpu = program(&[0xC5, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.acc = 0x41;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0xc5_cmp_zpg_lt() {
+        let mut cpu = program(&[0xC5, 0x20]);
+        cpu.wram.write_u8(0x20, 0x41);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xc5_cmp_zpg_negative_flag() {
+        let mut cpu = program(&[0xC5, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xd5_cmp_zpgx_eq() {
+        let mut cpu = program(&[0xD5, 0x10]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x10;
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C | Status::Z);
+    }
+
+    #[test]
+    fn test_0xd5_cmp_zpgx_gt() {
+        let mut cpu = program(&[0xD5, 0x10]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x10;
+        cpu.acc = 0x41;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0xd5_cmp_zpgx_lt() {
+        let mut cpu = program(&[0xD5, 0x10]);
+        cpu.wram.write_u8(0x20, 0x41);
+        cpu.x = 0x10;
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xd5_cmp_zpgx_negative_flag() {
+        let mut cpu = program(&[0xD5, 0x10]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.x = 0x10;
+        cpu.acc = 0x80;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
     }
 }
