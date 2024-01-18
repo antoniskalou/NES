@@ -204,6 +204,7 @@ impl CPU {
             0xE6 => (INC, ZeroPage(self.fetch())),
             0xE8 => (INX, Implicit),
             0xEA => (NOP, Implicit),
+            0xF6 => (INC, ZeroPageX(self.fetch())),
             0xF8 => (SED, Implicit),
             _ => (Illegal(opcode), Implicit)
         };
@@ -287,11 +288,11 @@ impl CPU {
                     self.pc = self.pc.wrapping_add(offset as u16);
                 }
             }
-            (INC, ZeroPage(addr)) => {
-                let data = self.wram.read_u8(addr as u16);
+            (INC, mode) => {
+                let data = self.read_mode_address(&mode);
                 let x = data.wrapping_add(1);
-                self.wram.write_u8(addr as u16, x);
                 self.sr.set_zn_flags(x);
+                self.write_mode_address(mode, x);
             }
             (LDX, Immediate(data)) => {
                 self.x = data;
@@ -721,7 +722,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe6_inc() {
+    fn test_0xe6_inc_zpg() {
         let mut cpu = program(&[0xE6, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
@@ -729,7 +730,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe6_inc_zero_flag() {
+    fn test_0xe6_inc_zpg_zero_flag() {
         let mut cpu = program(&[0xE6, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.tick();
@@ -737,11 +738,39 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe6_inc_negative_flag() {
+    fn test_0xe6_inc_zpg_negative_flag() {
         let mut cpu = program(&[0xE6, 0x20]);
         cpu.wram.write_u8(0x20, 0x7F);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xf6_inc_zpgx() {
+        let mut cpu = program(&[0xF6, 0x10]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x41);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xf6_inc_zpgx_zero_flag() {
+        let mut cpu = program(&[0xF6, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0xf6_zpgx_negative_flag() {
+        let mut cpu = program(&[0xF6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x7F);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
     }
 
     #[test]
