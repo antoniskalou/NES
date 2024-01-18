@@ -4,7 +4,7 @@ use crate::memory::Memory;
 // 2KB working RAM for the CPU
 const WRAM_SIZE: usize = 0x0800;
 // not the real size of a rom, just for now
-const ROM_SIZE: usize = 0xFFFF;
+const ROM_SIZE: usize = 0x0F00;
 
 /// see https://www.nesdev.org/obelisk-6502-guide/addressing.html
 #[derive(Debug)]
@@ -94,14 +94,13 @@ pub struct CPU {
     sp: u8,
     // program counter
     pc: u16,
-    // TODO: is there a way to specify size at compile time?
-    wram: Memory,
-    rom: Memory,
+    wram: Memory<WRAM_SIZE>,
+    rom: Memory<ROM_SIZE>,
 }
 
 impl CPU {
-    pub fn new(rom: Memory) -> CPU {
-        let wram = Memory::new(WRAM_SIZE);
+    pub fn new(rom: Memory<ROM_SIZE>) -> CPU {
+        let wram = Memory::new();
         CPU {
             acc: 0,
             x: 0,

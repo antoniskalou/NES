@@ -1,15 +1,13 @@
 #[derive(Debug)]
-pub struct Memory(Vec<u8>);
+pub struct Memory<const N: usize>([u8; N]);
 
-impl Memory {
-    pub fn new(size: usize) -> Self {
-        // TODO: figure out a way of using an array, see if we can provide
-        // the array size somehow during compile time.
-        Memory(vec![0; size])
+impl<const N: usize> Memory<N> {
+    pub fn new() -> Self {
+        Memory([0; N])
     }
 
     pub fn with_program(rom: &[u8]) -> Self {
-        let mut mem = Memory::new(rom.len());
+        let mut mem = Memory::new();
         mem.load(rom, 0x00);
         mem
     }
