@@ -54,7 +54,6 @@ impl Status {
 
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms)]
-// FIXME: only zero-page access currently supported
 enum Opcode {
     ADC,
     AND,
@@ -65,6 +64,7 @@ enum Opcode {
     CLD,
     CLI,
     CLV,
+    DEC,
     DEX,
     DEY,
     INC,
@@ -125,10 +125,11 @@ impl CPU {
         }
     }
 
-    fn read_mode_address(&self, mode: AddressingMode) -> u8 {
+    fn read_mode_address(&self, mode: &AddressingMode) -> u8 {
         use AddressingMode::*;
-        match mode {
+        match *mode {
             Immediate(data) => data,
+            Accumulator => self.acc,
             ZeroPage(addr) => self.wram.read_u8(addr as u16),
             ZeroPageX(addr) => {
                 let addr = addr + self.x;
@@ -138,7 +139,24 @@ impl CPU {
                 let addr = addr + self.y;
                 self.wram.read_u8(addr as u16)
             }
-            _ => panic!("mode {:?} doesn't have an address", mode)
+            _ => panic!("unsupported read mode: {:?}", mode)
+        }
+    }
+
+    fn write_mode_address(&mut self, mode: AddressingMode, data: u8) {
+        use AddressingMode::*;
+        match mode {
+            Accumulator => self.acc = data,
+            ZeroPage(addr) => self.wram.write_u8(addr as u16, data),
+            ZeroPageX(addr) => {
+                let addr = addr + self.x;
+                self.wram.write_u8(addr as u16, data);
+            }
+            ZeroPageY(addr) => {
+                let addr = addr + self.y;
+                self.wram.write_u8(addr as u16, data);
+            }
+            _ => panic!("unsupported write mode: {:?}", mode)
         }
     }
 
@@ -155,6 +173,8 @@ impl CPU {
         let (opcode, mode) = match opcode {
             0x00 => (BRK, Implicit),
             0x06 => (ASL, ZeroPage(self.fetch())),
+            0x0A => (ASL, Accumulator),
+            0x16 => (ASL, ZeroPageX(self.fetch())),
             0x18 => (CLC, Implicit),
             0x25 => (AND, ZeroPage(self.fetch())),
             0x29 => (AND, Immediate(self.fetch())),
@@ -176,8 +196,10 @@ impl CPU {
             0xA9 => (LDA, Immediate(self.fetch())),
             0xAA => (TAX, Implicit),
             0xB8 => (CLV, Implicit),
+            0xC6 => (DEC, ZeroPage(self.fetch())),
             0xC8 => (INY, Implicit),
             0xCA => (DEX, Implicit),
+            0xD6 => (DEC, ZeroPageX(self.fetch())),
             0xD8 => (CLD, Implicit),
             0xE6 => (INC, ZeroPage(self.fetch())),
             0xE8 => (INX, Implicit),
@@ -198,20 +220,20 @@ impl CPU {
                 // way of handling this
                 todo!("interrupts");
             }
-            (ASL, ZeroPage(addr)) => {
-                let data = self.wram.read_u8(addr as u16);
+            (ASL, mode) => {
+                let data = self.read_mode_address(&mode);
                 self.sr.set(Status::C, (data >> 7) & 1 > 0);
                 let x = data.wrapping_shl(1);
                 self.sr.set_zn_flags(x);
-                self.wram.write_u8(addr as u16, x);
+                self.write_mode_address(mode, x);
             }
             (AND, mode) => {
-                let data = self.read_mode_address(mode);
+                let data = self.read_mode_address(&mode);
                 self.acc &= data;
                 self.sr.set_zn_flags(self.acc);
             }
             (ADC, mode) => {
-                let data = self.read_mode_address(mode);
+                let data = self.read_mode_address(&mode);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
                 self.sr.set_zn_flags(self.acc);
@@ -229,6 +251,12 @@ impl CPU {
             }
             (CLV, Implicit) => {
                 self.sr.set(Status::V, false);
+            }
+            (DEC, mode) => {
+                let data = self.read_mode_address(&mode);
+                let x = data.wrapping_sub(1);
+                self.sr.set_zn_flags(x);
+                self.write_mode_address(mode, x);
             }
             (DEX, Implicit) => {
                 self.x = self.x.wrapping_sub(1);
@@ -324,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x06_asl() {
+    fn test_0x06_asl_zpg() {
         let mut cpu = program(&[0x06, 0x20]);
         cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
@@ -333,14 +361,14 @@ mod tests {
     }
 
     #[test]
-    fn test_0x06_asl_zero_flag() {
+    fn test_0x06_asl_zpg_zero_flag() {
         let mut cpu = program(&[0x06, 0x20]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
-    fn test_0x06_asl_negative_flag() {
+    fn test_0x06_asl_zpg_negative_flag() {
         let mut cpu = program(&[0x06, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
@@ -350,8 +378,80 @@ mod tests {
     }
 
     #[test]
-    fn test_0x06_asl_carry_flag() {
+    fn test_0x06_asl_zpg_carry_flag() {
         let mut cpu = program(&[0x06, 0x20]);
+        cpu.wram.write_u8(0x20, 0b1000_0000);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x0a_asl_acc() {
+        let mut cpu = program(&[0x0A]);
+        cpu.acc = 0b0000_0001;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b0000_0010);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x0a_asl_acc_zero_flag() {
+        let mut cpu = program(&[0x0A]);
+        cpu.acc = 0;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x0a_asl_acc_negative_flag() {
+        let mut cpu = program(&[0x0A]);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x80);
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x0a_asl_acc_carry_flag() {
+        let mut cpu = program(&[0x0A]);
+        cpu.acc = 0b1000_0000;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x16_asl_zpgx() {
+        let mut cpu = program(&[0x16, 0x10]);
+        cpu.x = 0x10;
+        cpu.wram.write_u8(0x20, 0b0000_0001);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x16_asl_zpgx_zero_flag() {
+        let mut cpu = program(&[0x16, 0x20]);
+        cpu.x = 0;
+        cpu.wram.write_u8(0x20, 0);
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x16_asl_zpgx_negative_flag() {
+        let mut cpu = program(&[0x16, 0x20]);
+        cpu.x = 0;
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x80);
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x16_asl_zpgx_carry_flag() {
+        let mut cpu = program(&[0x16, 0x20]);
+        cpu.x = 0;
         cpu.wram.write_u8(0x20, 0b1000_0000);
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
@@ -738,6 +838,61 @@ mod tests {
         cpu.y = 0x7F;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0xc6_dec_zpg() {
+        let mut cpu = program(&[0xC6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x3F);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xc6_dec_zpg_zero_flag() {
+        let mut cpu = program(&[0xC6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x01);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0xc6_dec_zpg_negative_flag() {
+        let mut cpu = program(&[0xC6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x00);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xd6_dec_zpgx() {
+        let mut cpu = program(&[0xD6, 0x10]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x3F);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xd6_dec_zpgx_zero_flag() {
+        let mut cpu = program(&[0xD6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x01);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0xd6_dec_zpgx_negative_flag() {
+        let mut cpu = program(&[0xD6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x00);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
+        assert_eq!(cpu.sr, Status::N);
     }
 
     #[test]
