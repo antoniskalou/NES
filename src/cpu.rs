@@ -6,7 +6,26 @@ const WRAM_SIZE: usize = 0x0800;
 // not the real size of a rom, just for now
 const ROM_SIZE: usize = 0xFFFF;
 
+/// see https://www.nesdev.org/obelisk-6502-guide/addressing.html
+#[derive(Debug)]
+pub enum AddressingMode {
+    Implicit,
+    Accumulator,
+    Immediate,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+    Relative,
+    Absolute,
+    AbsoluteX,
+    AbsoluteY,
+    Indirect,
+    IndexedIndirect,
+    IndirectIndexed,
+}
+
 bitflags! {
+    /// see https://www.nesdev.org/obelisk-6502-guide/registers.html
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Status: u8 {
         const C = 0b0000_0001; // Carry
@@ -25,26 +44,6 @@ impl Status {
         self.set(Status::Z, val == 0);
         self.set(Status::N, val & 0x80 == 0x80);
     }
-}
-
-// naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
-#[derive(Debug)]
-pub struct CPU {
-    // acccumulator
-    acc: u8,
-    // X register
-    x: u8,
-    // Y register
-    y: u8,
-    // status register [NV-BDIZC]
-    sr: Status,
-    // stacck pointer
-    sp: u8,
-    // program counter
-    pc: u16,
-    // TODO: is there a way to specify size at compile time?
-    wram: Memory,
-    rom: Memory,
 }
 
 #[derive(Debug)]
@@ -78,6 +77,26 @@ enum Instruction {
     TXA,
     TYA,
     Illegal(u8),
+}
+
+// naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
+#[derive(Debug)]
+pub struct CPU {
+    // acccumulator
+    acc: u8,
+    // X register
+    x: u8,
+    // Y register
+    y: u8,
+    // status register [NV-BDIZC]
+    sr: Status,
+    // stacck pointer
+    sp: u8,
+    // program counter
+    pc: u16,
+    // TODO: is there a way to specify size at compile time?
+    wram: Memory,
+    rom: Memory,
 }
 
 impl CPU {
@@ -142,7 +161,7 @@ impl CPU {
                 // TODO
                 // loop forever until we come up with a better
                 // way of handling this
-                loop {}
+                todo!("interrupts");
             }
             ASL(addr) => {
                 let data = self.wram.read_u8(addr as u16);
