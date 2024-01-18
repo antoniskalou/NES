@@ -192,11 +192,13 @@ impl CPU {
             0x98 => (TYA, Implicit),
             0xA0 => (LDY, Immediate(self.fetch())),
             0xA2 => (LDX, Immediate(self.fetch())),
+            0xA4 => (LDY, ZeroPage(self.fetch())),
             0xA5 => (LDA, ZeroPage(self.fetch())),
             0xA6 => (LDX, ZeroPage(self.fetch())),
             0xA8 => (TAY, Implicit),
             0xA9 => (LDA, Immediate(self.fetch())),
             0xAA => (TAX, Implicit),
+            0xB4 => (LDY, ZeroPageX(self.fetch())),
             0xB5 => (LDA, ZeroPageX(self.fetch())),
             0xB6 => (LDX, ZeroPageY(self.fetch())),
             0xB8 => (CLV, Implicit),
@@ -302,8 +304,8 @@ impl CPU {
                 self.x = self.read_mode_address(&mode);
                 self.sr.set_zn_flags(self.x);
             }
-            (LDY, Immediate(data)) => {
-                self.y = data;
+            (LDY, mode) => {
+                self.y = self.read_mode_address(&mode);
                 self.sr.set_zn_flags(self.y);
             }
             (NOP, Implicit) => {}
@@ -906,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa0_ldy() {
+    fn test_0xa0_ldy_imm() {
         let mut cpu = program(&[0xA0, 0x40]);
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
@@ -914,17 +916,70 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa0_ldy_zero_flag() {
+    fn test_0xa0_ldy_imm_zero_flag() {
         let mut cpu = program(&[0xA0, 0x00]);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert_eq!(cpu.sr, Status::Z);
     }
 
     #[test]
-    fn test_0xa0_ldy_negative_flag() {
+    fn test_0xa0_ldy_imm_negative_flag() {
         let mut cpu = program(&[0xA0, 0x80]);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xa4_ldy_zpg() {
+        let mut cpu = program(&[0xA4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.tick();
+        assert_eq!(cpu.y, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xa4_ldy_zpg_zero_flag() {
+        let mut cpu = program(&[0xA4, 0x20]);
+        cpu.wram.write_u8(0x20, 0);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0xa4_ldy_zpg_negative_flag() {
+        let mut cpu = program(&[0xA4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x80);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xb4_ldy_zpgx() {
+        let mut cpu = program(&[0xB4, 0x10]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.y, 0x40);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xb4_ldy_zpgx_zero_flag() {
+        let mut cpu = program(&[0xB4, 0x20]);
+        cpu.wram.write_u8(0x20, 0);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0xb4_ldy_zpgx_negative_flag() {
+        let mut cpu = program(&[0xB4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x80);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
     }
 
     #[test]
