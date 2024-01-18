@@ -6,6 +6,12 @@ const WRAM_SIZE: usize = 0x0800;
 // not the real size of a rom, just for now
 const ROM_SIZE: usize = 0x0F00;
 
+#[allow(clippy::upper_case_acronyms)]
+type WRAM = Memory<WRAM_SIZE>;
+
+#[allow(clippy::upper_case_acronyms)]
+type ROM = Memory<ROM_SIZE>;
+
 /// see https://www.nesdev.org/obelisk-6502-guide/addressing.html
 #[derive(Debug)]
 pub enum AddressingMode {
@@ -94,13 +100,13 @@ pub struct CPU {
     sp: u8,
     // program counter
     pc: u16,
-    wram: Memory<WRAM_SIZE>,
-    rom: Memory<ROM_SIZE>,
+    wram: WRAM,
+    rom: ROM,
 }
 
 impl CPU {
-    pub fn new(rom: Memory<ROM_SIZE>) -> CPU {
-        let wram = Memory::new();
+    pub fn new(rom: ROM) -> CPU {
+        let wram = WRAM::new();
         CPU {
             acc: 0,
             x: 0,
