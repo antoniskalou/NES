@@ -17,11 +17,11 @@ type ROM = Memory<ROM_SIZE>;
 pub enum AddressingMode {
     Implicit,
     Accumulator,
-    Immediate,
-    ZeroPage,
+    Immediate(u8),
+    ZeroPage(u8),
     ZeroPageX,
     ZeroPageY,
-    Relative,
+    Relative(u8), // FIXME: can be negative
     Absolute,
     AbsoluteX,
     AbsoluteY,
@@ -55,34 +55,40 @@ impl Status {
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms)]
 // FIXME: only zero-page access currently supported
-enum Instruction {
-    ADC(u8),
-    AND(u8),
-    ASL(u8),
+enum Opcode {
+    ADC,
+    AND,
+    ASL,
     BRK,
-    BCC(u8),
+    BCC,
     CLC,
     CLD,
     CLI,
     CLV,
     DEX,
     DEY,
-    INC(u8),
+    INC,
     INX,
     INY,
-    LDA(u8), // Immediate
-    LDX(u8), // Immediate
-    LDY(u8), // Immediate
+    LDA,
+    LDX,
+    LDY,
     NOP,
     SEC,
     SED,
     SEI,
-    STA(u8),
+    STA,
     TAX,
     TAY,
     TXA,
     TYA,
     Illegal(u8),
+}
+
+#[derive(Debug)]
+struct Instruction {
+    opcode: Opcode,
+    mode: AddressingMode,
 }
 
 // naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
@@ -127,60 +133,63 @@ impl CPU {
 
     // may step PC if opcode requires data
     fn decode(&mut self, opcode: u8) -> Instruction {
-        use Instruction::*;
-        match opcode {
-            0x00 => BRK,
-            0x06 => ASL(self.fetch()),
-            0x18 => CLC,
-            0x25 => AND(self.fetch()),
-            0x38 => SEC,
-            0x58 => CLI,
-            0x65 => ADC(self.fetch()),
-            0x78 => SEI,
-            0x85 => STA(self.fetch()),
-            0x88 => DEY,
-            0x8A => TXA,
-            0x90 => BCC(self.fetch()),
-            0x98 => TYA,
-            0xA4 => LDY(self.fetch()),
-            0xA6 => LDX(self.fetch()),
-            0xA8 => TAY,
-            0xA9 => LDA(self.fetch()),
-            0xAA => TAX,
-            0xB8 => CLV,
-            0xC8 => INY,
-            0xCA => DEX,
-            0xD8 => CLD,
-            0xE6 => INC(self.fetch()),
-            0xE8 => INX,
-            0xEA => NOP,
-            0xF8 => SED,
-            _ => Illegal(opcode)
-        }
+        use AddressingMode::*;
+        use Opcode::*;
+        let (opcode, mode) = match opcode {
+            0x00 => (BRK, Implicit),
+            0x06 => (ASL, ZeroPage(self.fetch())),
+            0x18 => (CLC, Implicit),
+            0x25 => (AND, ZeroPage(self.fetch())),
+            0x38 => (SEC, Implicit),
+            0x58 => (CLI, Implicit),
+            0x65 => (ADC, ZeroPage(self.fetch())),
+            0x78 => (SEI, Implicit),
+            0x85 => (STA, ZeroPage(self.fetch())),
+            0x88 => (DEY, Implicit),
+            0x8A => (TXA, Implicit),
+            0x90 => (BCC, Relative(self.fetch())),
+            0x98 => (TYA, Implicit),
+            0xA4 => (LDY, ZeroPage(self.fetch())),
+            0xA6 => (LDX, ZeroPage(self.fetch())),
+            0xA8 => (TAY, Implicit),
+            0xA9 => (LDA, Immediate(self.fetch())),
+            0xAA => (TAX, Implicit),
+            0xB8 => (CLV, Implicit),
+            0xC8 => (INY, Implicit),
+            0xCA => (DEX, Implicit),
+            0xD8 => (CLD, Implicit),
+            0xE6 => (INC, ZeroPage(self.fetch())),
+            0xE8 => (INX, Implicit),
+            0xEA => (NOP, Implicit),
+            0xF8 => (SED, Implicit),
+            _ => (Illegal(opcode), Implicit)
+        };
+        Instruction { opcode, mode, }
     }
 
     fn execute(&mut self, inst: Instruction) {
-        use Instruction::*;
-        match inst {
-            BRK => {
+        use AddressingMode::*;
+        use Opcode::*;
+        match (inst.opcode, inst.mode) {
+            (BRK, Implicit) => {
                 // TODO
                 // loop forever until we come up with a better
                 // way of handling this
                 todo!("interrupts");
             }
-            ASL(addr) => {
+            (ASL, ZeroPage(addr)) => {
                 let data = self.wram.read_u8(addr as u16);
                 self.sr.set(Status::C, (data >> 7) & 1 > 0);
                 let x = data.wrapping_shl(1);
                 self.sr.set_zn_flags(x);
                 self.wram.write_u8(addr as u16, x);
             }
-            AND(addr) => {
+            (AND, ZeroPage(addr)) => {
                 let data = self.wram.read_u8(addr as u16);
                 self.acc &= data;
                 self.sr.set_zn_flags(self.acc);
             }
-            ADC(addr) => {
+            (ADC, ZeroPage(addr)) => {
                 let data = self.wram.read_u8(addr as u16);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
@@ -188,87 +197,90 @@ impl CPU {
                 self.sr.set(Status::C, o);
                 // TODO: overflow flag
             }
-            CLC => {
+            (CLC, Implicit) => {
                 self.sr.set(Status::C, false);
             }
-            CLD => {
+            (CLD, Implicit) => {
                 self.sr.set(Status::D, false);
             }
-            CLI => {
+            (CLI, Implicit) => {
                 self.sr.set(Status::I, false);
             }
-            CLV => {
+            (CLV, Implicit) => {
                 self.sr.set(Status::V, false);
             }
-            DEX => {
+            (DEX, Implicit) => {
                 self.x = self.x.wrapping_sub(1);
                 self.sr.set_zn_flags(self.x);
             }
-            DEY => {
+            (DEY, Implicit) => {
                 self.y = self.y.wrapping_sub(1);
                 self.sr.set_zn_flags(self.y);
             }
-            LDA(data) => {
+            (LDA, Immediate(data)) => {
                 self.acc = data;
                 self.sr.set_zn_flags(self.acc);
             }
-            SEC => {
+            (SEC, Implicit) => {
                 self.sr.set(Status::C, true);
             }
-            SED => {
+            (SED, Implicit) => {
                 self.sr.set(Status::D, true);
             }
-            SEI => {
+            (SEI, Implicit) => {
                 self.sr.set(Status::I, true);
             }
-            STA(addr) => {
+            (STA, ZeroPage(addr)) => {
                 self.wram.write_u8(addr as u16, self.acc)
             }
-            BCC(offset) => {
+            (BCC, Relative(offset)) => {
                 if self.sr.contains(Status::C) {
                     self.pc = self.pc.wrapping_add(offset as u16);
                 }
             }
-            INC(addr) => {
+            (INC, ZeroPage(addr)) => {
                 let data = self.wram.read_u8(addr as u16);
                 let x = data.wrapping_add(1);
                 self.wram.write_u8(addr as u16, x);
                 self.sr.set_zn_flags(x);
             }
-            LDX(data) => {
+            (LDX, ZeroPage(data)) => {
+                // FIXME: behaves as immediate, is actually zero-page
+                // FIXME: same with LDY
                 self.x = data;
                 self.sr.set_zn_flags(self.x);
             }
-            LDY(data) => {
+            (LDY, ZeroPage(data)) => {
                 self.y = data;
                 self.sr.set_zn_flags(self.y);
             }
-            NOP => {}
-            INX => {
+            (NOP, Implicit) => {}
+            (INX, Implicit) => {
                 self.x = self.x.wrapping_add(1);
                 self.sr.set_zn_flags(self.x);
             }
-            INY => {
+            (INY, Implicit) => {
                 self.y = self.y.wrapping_add(1);
                 self.sr.set_zn_flags(self.y);
             }
-            TAX => {
+            (TAX, Implicit) => {
                 self.x = self.acc;
                 self.sr.set_zn_flags(self.x);
             }
-            TAY => {
+            (TAY, Implicit) => {
                 self.y = self.acc;
                 self.sr.set_zn_flags(self.y);
             }
-            TXA => {
+            (TXA, Implicit) => {
                 self.acc = self.x;
                 self.sr.set_zn_flags(self.acc);
             }
-            TYA => {
+            (TYA, Implicit) => {
                 self.acc = self.y;
                 self.sr.set_zn_flags(self.acc);
             }
-            Illegal(opcode) => panic!("illegal opcode: 0x{:02X}", opcode)
+            (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
+            inst => unreachable!("unhandled instruction: {:?}", inst),
         }
     }
 
