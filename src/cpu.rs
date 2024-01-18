@@ -149,8 +149,8 @@ impl CPU {
             0x8A => (TXA, Implicit),
             0x90 => (BCC, Relative(self.fetch())),
             0x98 => (TYA, Implicit),
-            0xA4 => (LDY, ZeroPage(self.fetch())),
-            0xA6 => (LDX, ZeroPage(self.fetch())),
+            0xA0 => (LDY, Immediate(self.fetch())),
+            0xA2 => (LDX, Immediate(self.fetch())),
             0xA8 => (TAY, Implicit),
             0xA9 => (LDA, Immediate(self.fetch())),
             0xAA => (TAX, Implicit),
@@ -244,13 +244,11 @@ impl CPU {
                 self.wram.write_u8(addr as u16, x);
                 self.sr.set_zn_flags(x);
             }
-            (LDX, ZeroPage(data)) => {
-                // FIXME: behaves as immediate, is actually zero-page
-                // FIXME: same with LDY
+            (LDX, Immediate(data)) => {
                 self.x = data;
                 self.sr.set_zn_flags(self.x);
             }
-            (LDY, ZeroPage(data)) => {
+            (LDY, Immediate(data)) => {
                 self.y = data;
                 self.sr.set_zn_flags(self.y);
             }
@@ -525,45 +523,45 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa6_ldx() {
-        let mut cpu = program(&[0xA6, 0x40]);
+    fn test_0xa2_ldx() {
+        let mut cpu = program(&[0xA2, 0x40]);
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
-    fn test_0xa6_ldx_zero_flag() {
-        let mut cpu = program(&[0xA6, 0]);
+    fn test_0xa2_ldx_zero_flag() {
+        let mut cpu = program(&[0xA2, 0]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
-    fn test_0xa6_ldx_negative_flag() {
-        let mut cpu = program(&[0xA6, 0x80]);
+    fn test_0xa2_ldx_negative_flag() {
+        let mut cpu = program(&[0xA2, 0x80]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
 
     #[test]
-    fn test_0xa4_ldy() {
-        let mut cpu = program(&[0xA4, 0x40]);
+    fn test_0xa0_ldy() {
+        let mut cpu = program(&[0xA0, 0x40]);
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
         assert!(cpu.sr.is_empty());
     }
 
     #[test]
-    fn test_0xa4_ldy_zero_flag() {
-        let mut cpu = program(&[0xA4, 0x00]);
+    fn test_0xa0_ldy_zero_flag() {
+        let mut cpu = program(&[0xA0, 0x00]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
-    fn test_0xa4_ldy_negative_flag() {
-        let mut cpu = program(&[0xA4, 0x80]);
+    fn test_0xa0_ldy_negative_flag() {
+        let mut cpu = program(&[0xA0, 0x80]);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
