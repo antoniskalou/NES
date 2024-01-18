@@ -284,7 +284,7 @@ mod tests {
     use super::*;
 
     fn program(bytes: &[u8]) -> CPU {
-        CPU::new(Memory::with_program(bytes))
+        CPU::new(Memory::from(bytes))
     }
 
     #[test]

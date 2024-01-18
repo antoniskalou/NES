@@ -16,7 +16,7 @@ fn main() {
         0xC8,       // INY      -> Y=#$13
         0x00,       // BRK
     ];
-    let memory = Memory::with_program(&program);
+    let memory = Memory::from(program.as_slice());
     let mut cpu = CPU::new(memory);
     loop {
         cpu.tick();
