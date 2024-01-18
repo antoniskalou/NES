@@ -1,5 +1,5 @@
-use bitflags::bitflags;
 use crate::memory::Memory;
+use bitflags::bitflags;
 
 // 2KB working RAM for the CPU
 const WRAM_SIZE: usize = 0x0800;
@@ -55,34 +55,10 @@ impl Status {
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms)]
 enum Opcode {
-    ADC,
-    AND,
-    ASL,
-    BRK,
-    BCC,
-    CLC,
-    CLD,
-    CLI,
-    CLV,
-    DEC,
-    DEX,
-    DEY,
-    INC,
-    INX,
-    INY,
-    LDA,
-    LDX,
-    LDY,
-    NOP,
-    SEC,
-    SED,
-    SEI,
-    STA,
-    TAX,
-    TAY,
-    TXA,
-    TYA,
-    Illegal(u8),
+    ADC, AND, ASL, BCC, BCS, BEQ, BIT, BMI, BNE, BPL, BRK, BVC, BVS, CLC, CLD,
+    CLI, CLV, CMP, CPX, CPY, DEC, DEX, DEY, EOR, INC, INX, INY, JMP, JSR, LDA,
+    LDX, LDY, LSR, NOP, ORA, PHA, PHP, PLA, PLP, ROL, ROR, RTI, RTS, SBC, SEC,
+    SED, SEI, STA, STX, STY, TAX, TAY, TSX, TXA, TXS, TYA, Illegal(u8),
 }
 
 #[derive(Debug)]
@@ -139,7 +115,7 @@ impl CPU {
                 let addr = addr + self.y;
                 self.wram.read_u8(addr as u16)
             }
-            _ => panic!("unsupported read mode: {:?}", mode)
+            _ => panic!("unsupported read mode: {:?}", mode),
         }
     }
 
@@ -156,7 +132,7 @@ impl CPU {
                 let addr = addr + self.y;
                 self.wram.write_u8(addr as u16, data);
             }
-            _ => panic!("unsupported write mode: {:?}", mode)
+            _ => panic!("unsupported write mode: {:?}", mode),
         }
     }
 
@@ -189,6 +165,7 @@ impl CPU {
             0x88 => (DEY, Implicit),
             0x8A => (TXA, Implicit),
             0x90 => (BCC, Relative(self.fetch())),
+            0x95 => (STA, ZeroPageX(self.fetch())),
             0x98 => (TYA, Implicit),
             0xA0 => (LDY, Immediate(self.fetch())),
             0xA2 => (LDX, Immediate(self.fetch())),
@@ -212,9 +189,9 @@ impl CPU {
             0xEA => (NOP, Implicit),
             0xF6 => (INC, ZeroPageX(self.fetch())),
             0xF8 => (SED, Implicit),
-            _ => (Illegal(opcode), Implicit)
+            _ => (Illegal(opcode), Implicit),
         };
-        Instruction { opcode, mode, }
+        Instruction { opcode, mode }
     }
 
     fn execute(&mut self, inst: Instruction) {
@@ -286,9 +263,7 @@ impl CPU {
             (SEI, Implicit) => {
                 self.sr.set(Status::I, true);
             }
-            (STA, ZeroPage(addr)) => {
-                self.wram.write_u8(addr as u16, self.acc)
-            }
+            (STA, mode) => self.write_mode_address(mode, self.acc),
             (BCC, Relative(offset)) => {
                 if self.sr.contains(Status::C) {
                     self.pc = self.pc.wrapping_add(offset as u16);
@@ -655,11 +630,21 @@ mod tests {
     }
 
     #[test]
-    fn test_0x85_sta() {
-        let mut cpu = program(&[0x85, 0xFF]);
+    fn test_0x85_sta_zpg() {
+        let mut cpu = program(&[0x85, 0x20]);
         cpu.acc = 0xFF;
         cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0xFF), 0xFF);
+        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x95_sta_zpgx() {
+        let mut cpu = program(&[0x95, 0x10]);
+        cpu.x = 0x10;
+        cpu.acc = 0xFF;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
     }
 
     #[test]
@@ -674,8 +659,7 @@ mod tests {
     #[test]
     fn test_0x90_bcc_offset() {
         let mut cpu = program(&[
-            0x90, 0x02,
-            0xFF, 0xFF, // should never be reached
+            0x90, 0x02, 0xFF, 0xFF, // should never be reached
             0xC8,
         ]);
         cpu.sr.set(Status::C, true);
@@ -687,9 +671,7 @@ mod tests {
     #[test]
     fn test_0x90_bcc_no_carry() {
         let mut cpu = program(&[
-            0x90, 0x02,
-            0xA9, 0xFF,
-            0xC8, // shouldn't be reached in test
+            0x90, 0x02, 0xA9, 0xFF, 0xC8, // shouldn't be reached in test
         ]);
         cpu.sr.set(Status::C, false);
         cpu.tick();
@@ -734,7 +716,6 @@ mod tests {
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
     }
-
 
     #[test]
     fn test_0x69_adc_imm() {
