@@ -1,16 +1,15 @@
-// 2KB CPU RAM
-const MEMORY_SIZE: usize = 0x0800;
-
 #[derive(Debug)]
-pub struct Memory([u8; MEMORY_SIZE]);
+pub struct Memory(Vec<u8>);
 
 impl Memory {
-    pub fn new() -> Self {
-        Memory([0; MEMORY_SIZE])
+    pub fn new(size: usize) -> Self {
+        // TODO: figure out a way of using an array, see if we can provide
+        // the array size somehow during compile time.
+        Memory(vec![0; size])
     }
 
     pub fn with_program(rom: &[u8]) -> Self {
-        let mut mem = Memory::new();
+        let mut mem = Memory::new(rom.len());
         mem.load(rom, 0x00);
         mem
     }

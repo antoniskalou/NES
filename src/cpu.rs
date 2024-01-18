@@ -1,6 +1,11 @@
 use bitflags::bitflags;
 use crate::memory::Memory;
 
+// 2KB working RAM for the CPU
+const WRAM_SIZE: usize = 0x0800;
+// not the real size of a rom, just for now
+const ROM_SIZE: usize = 0xFFFF;
+
 bitflags! {
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct Status: u8 {
@@ -37,7 +42,9 @@ pub struct CPU {
     sp: u8,
     // program counter
     pc: u16,
-    memory: Memory,
+    // TODO: is there a way to specify size at compile time?
+    wram: Memory,
+    rom: Memory,
 }
 
 #[derive(Debug)]
@@ -74,7 +81,8 @@ enum Instruction {
 }
 
 impl CPU {
-    pub fn new(memory: Memory) -> CPU {
+    pub fn new(rom: Memory) -> CPU {
+        let wram = Memory::new(WRAM_SIZE);
         CPU {
             acc: 0,
             x: 0,
@@ -82,12 +90,13 @@ impl CPU {
             sr: Status::U & Status::I,
             sp: 0xFD,
             pc: 0,
-            memory,
+            rom,
+            wram,
         }
     }
 
     fn fetch(&mut self) -> u8 {
-        let opcode = self.memory.read_u8(self.pc);
+        let opcode = self.rom.read_u8(self.pc);
         self.pc += 1;
         opcode
     }
@@ -136,19 +145,19 @@ impl CPU {
                 loop {}
             }
             ASL(addr) => {
-                let data = self.memory.read_u8(addr as u16);
+                let data = self.wram.read_u8(addr as u16);
                 self.sr.set(Status::C, (data >> 7) & 1 > 0);
                 let x = data.wrapping_shl(1);
                 self.sr.set_zn_flags(x);
-                self.memory.write_u8(addr as u16, x);
+                self.wram.write_u8(addr as u16, x);
             }
             AND(addr) => {
-                let data = self.memory.read_u8(addr as u16);
+                let data = self.wram.read_u8(addr as u16);
                 self.acc &= data;
                 self.sr.set_zn_flags(self.acc);
             }
             ADC(addr) => {
-                let data = self.memory.read_u8(addr as u16);
+                let data = self.wram.read_u8(addr as u16);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
                 self.sr.set_zn_flags(self.acc);
@@ -189,7 +198,7 @@ impl CPU {
                 self.sr.set(Status::I, true);
             }
             STA(addr) => {
-                self.memory.write_u8(addr as u16, self.acc)
+                self.wram.write_u8(addr as u16, self.acc)
             }
             BCC(offset) => {
                 if self.sr.contains(Status::C) {
@@ -197,9 +206,9 @@ impl CPU {
                 }
             }
             INC(addr) => {
-                let data = self.memory.read_u8(addr as u16);
+                let data = self.wram.read_u8(addr as u16);
                 let x = data.wrapping_add(1);
-                self.memory.write_u8(addr as u16, x);
+                self.wram.write_u8(addr as u16, x);
                 self.sr.set_zn_flags(x);
             }
             LDX(data) => {
@@ -261,11 +270,10 @@ mod tests {
 
     #[test]
     fn test_0x06_asl() {
-        let mut mem = Memory::with_program(&[0x06, 0x20]);
-        mem.write_u8(0x20, 0b0000_0001);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x06, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
-        assert_eq!(cpu.memory.read_u8(0x20), 0b0000_0010);
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
         assert!(cpu.sr.is_empty());
     }
 
@@ -278,20 +286,18 @@ mod tests {
 
     #[test]
     fn test_0x06_asl_negative_flag() {
-        let mut mem = Memory::with_program(&[0x06, 0x20]);
-        mem.write_u8(0x20, 0x40);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x06, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         // multiplies by 2
-        assert_eq!(cpu.memory.read_u8(0x20), 0x80);
+        assert_eq!(cpu.wram.read_u8(0x20), 0x80);
         assert!(cpu.sr.contains(Status::N));
     }
 
     #[test]
     fn test_0x06_asl_carry_flag() {
-        let mut mem = Memory::with_program(&[0x06, 0x20]);
-        mem.write_u8(0x20, 0b1000_0000);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x06, 0x20]);
+        cpu.wram.write_u8(0x20, 0b1000_0000);
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
     }
@@ -330,9 +336,8 @@ mod tests {
 
     #[test]
     fn test_0x25_and() {
-        let mut mem = Memory::with_program(&[0x25, 0x20]);
-        mem.write_u8(0x20, 0b1010);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x25, 0x20]);
+        cpu.wram.write_u8(0x20, 0b1010);
         cpu.acc = 0b1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010);
@@ -349,9 +354,8 @@ mod tests {
 
     #[test]
     fn test_0x25_and_negative_flag() {
-        let mut mem = Memory::with_program(&[0x25, 0x20]);
-        mem.write_u8(0x20, 0xFF);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x25, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
         cpu.acc = 0x80;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
@@ -384,7 +388,7 @@ mod tests {
         let mut cpu = program(&[0x85, 0xFF]);
         cpu.acc = 0xFF;
         cpu.tick();
-        assert_eq!(cpu.memory.read_u8(0xFF), 0xFF);
+        assert_eq!(cpu.wram.read_u8(0xFF), 0xFF);
     }
 
     #[test]
@@ -426,9 +430,8 @@ mod tests {
 
     #[test]
     fn test_0x65_adc() {
-        let mut mem = Memory::with_program(&[0x65, 0x20]);
-        mem.write_u8(0x20, 0x40);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
         cpu.acc = 0x04;
         cpu.tick();
         assert_eq!(cpu.acc, 0x44);
@@ -445,9 +448,8 @@ mod tests {
 
     #[test]
     fn test_0x65_adc_negative_flag() {
-        let mut mem = Memory::with_program(&[0x65, 0x20]);
-        mem.write_u8(0x20, 1);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 1);
         cpu.acc = 0x7F;
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
@@ -455,9 +457,8 @@ mod tests {
 
     #[test]
     fn test_0x65_adc_carry_flag() {
-        let mut mem = Memory::with_program(&[0x65, 0x20]);
-        mem.write_u8(0x20, 1);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 1);
         cpu.acc = 0xFF;
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
@@ -465,27 +466,24 @@ mod tests {
 
     #[test]
     fn test_0xe6_inc() {
-        let mut mem = Memory::with_program(&[0xE6, 0x20]);
-        mem.write_u8(0x20, 0x40);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xE6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
-        assert_eq!(cpu.memory.read_u8(0x20), 0x41);
+        assert_eq!(cpu.wram.read_u8(0x20), 0x41);
     }
 
     #[test]
     fn test_0xe6_inc_zero_flag() {
-        let mut mem = Memory::with_program(&[0xE6, 0x20]);
-        mem.write_u8(0x20, 0xFF);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xE6, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
         cpu.tick();
         assert!(cpu.sr.contains(Status::Z));
     }
 
     #[test]
     fn test_0xe6_inc_negative_flag() {
-        let mut mem = Memory::with_program(&[0xE6, 0x20]);
-        mem.write_u8(0x20, 0x7F);
-        let mut cpu = CPU::new(mem);
+        let mut cpu = program(&[0xE6, 0x20]);
+        cpu.wram.write_u8(0x20, 0x7F);
         cpu.tick();
         assert!(cpu.sr.contains(Status::N));
     }
