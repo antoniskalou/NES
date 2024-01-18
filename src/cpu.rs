@@ -192,6 +192,8 @@ impl CPU {
             0xD5 => (CMP, ZeroPageX(self.fetch())),
             0xD6 => (DEC, ZeroPageX(self.fetch())),
             0xD8 => (CLD, Implicit),
+            0xE0 => (CPX, Immediate(self.fetch())),
+            0xE4 => (CPX, ZeroPage(self.fetch())),
             0xE6 => (INC, ZeroPage(self.fetch())),
             0xE8 => (INX, Implicit),
             0xEA => (NOP, Implicit),
@@ -249,6 +251,12 @@ impl CPU {
                 self.sr.set(Status::C, self.acc >= data);
                 self.sr.set(Status::Z, self.acc == data);
                 self.sr.set_n_flag(self.acc);
+            }
+            (CPX, mode) => {
+                let data = self.read_mode_address(&mode);
+                self.sr.set(Status::C, self.x >= data);
+                self.sr.set(Status::Z, self.x == data);
+                self.sr.set_n_flag(self.x);
             }
             (DEC, mode) => {
                 let data = self.read_mode_address(&mode);
@@ -1410,6 +1418,74 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0x10;
         cpu.acc = 0x80;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xe0_cpx_imm_eq() {
+        let mut cpu = program(&[0xE0, 0x40]);
+        cpu.x = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C | Status::Z);
+    }
+
+    #[test]
+    fn test_0xe0_cpx_imm_gt() {
+        let mut cpu = program(&[0xE0, 0x40]);
+        cpu.x = 0x41;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0xe0_cpx_imm_lt() {
+        let mut cpu = program(&[0xE0, 0x41]);
+        cpu.x = 0x40;
+        cpu.tick();
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xe0_cpx_imm_negative_flag() {
+        let mut cpu = program(&[0xE0, 0xFF]);
+        cpu.x = 0x80;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::N);
+    }
+
+    #[test]
+    fn test_0xe4_cpx_zpg_eq() {
+        let mut cpu = program(&[0xE4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C | Status::Z);
+    }
+
+    #[test]
+    fn test_0xe4_cpx_zpg_gt() {
+        let mut cpu = program(&[0xE4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.x = 0x41;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0xe4_cpx_zpg_lt() {
+        let mut cpu = program(&[0xE4, 0x20]);
+        cpu.wram.write_u8(0x20, 0x41);
+        cpu.x = 0x40;
+        cpu.tick();
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xe4_cpx_zpg_negative_flag() {
+        let mut cpu = program(&[0xE4, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.x = 0x80;
         cpu.tick();
         assert_eq!(cpu.sr, Status::N);
     }
