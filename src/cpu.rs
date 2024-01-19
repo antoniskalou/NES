@@ -175,12 +175,14 @@ impl CPU {
             0x38 => (SEC, Implicit),
             0x46 => (LSR, ZeroPage(self.fetch())),
             0x4A => (LSR, Accumulator),
+            0x50 => (BVC, Relative(self.fetch() as i8)),
             0x56 => (LSR, ZeroPageX(self.fetch())),
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
             0x66 => (ROR, ZeroPage(self.fetch())),
             0x69 => (ADC, Immediate(self.fetch())),
             0x6A => (ROR, Accumulator),
+            0x70 => (BVS, Relative(self.fetch() as i8)),
             0x75 => (ADC, ZeroPageX(self.fetch())),
             0x76 => (ROR, ZeroPageX(self.fetch())),
             0x78 => (SEI, Implicit),
@@ -233,12 +235,6 @@ impl CPU {
         use AddressingMode::*;
         use Opcode::*;
         match (inst.opcode, inst.mode) {
-            (BRK, Implicit) => {
-                // TODO
-                // loop forever until we come up with a better
-                // way of handling this
-                todo!("CPU halt");
-            }
             (ASL, mode) => {
                 let data = self.read_operand(&mode);
                 self.p.set(Status::C, (data >> 7) & 1 != 0);
@@ -286,6 +282,19 @@ impl CPU {
             }
             (BPL, Relative(offset)) => {
                 if !self.p.contains(Status::N) {
+                    self.branch(offset);
+                }
+            }
+            (BRK, Implicit) => {
+                todo!("CPU halt");
+            }
+            (BVC, Relative(offset)) => {
+                if !self.p.contains(Status::V) {
+                    self.branch(offset);
+                }
+            }
+            (BVS, Relative(offset)) => {
+                if self.p.contains(Status::V) {
                     self.branch(offset);
                 }
             }
@@ -1192,13 +1201,47 @@ mod tests {
         assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
     }
 
+    /// creates a program that checks the behaviour of a branch operation
+    /// when its condition is false.
+    ///
+    /// if run correctly the program will set the accumulator to 0xFF.
+    fn branch_no_skip(opcode: u8) -> [u8; 5] {
+        [
+            opcode, 0x02,
+            0xA9,   0xFF,
+            0x00, // unreachable
+        ]
+    }
+
+    /// creates a program that checks that branching works with positive
+    /// offsets.
+    ///
+    /// if run correctly the program will increment the Y register.
+    fn branch_offset(opcode: u8) -> [u8; 5] {
+        [
+            opcode, 0x02,
+            0x00,   0x00, // unreachable
+            0xC8,         // INY
+        ]
+    }
+
+    /// creates a program that checks that branching works with negative
+    /// offsets.
+    ///
+    /// if run correctly the program will increment (with INY) the Y register
+    /// twice, once when run normally and again when the program jumps back to
+    /// the INY instruction.
+    fn branch_negative_offset(opcode: u8) -> [u8; 4] {
+        [
+            0xC8,         // INY,
+            opcode, 0xFD, // jump to start (-3)
+            0x00,
+        ]
+    }
+
     #[test]
     fn test_0x90_bcc_no_skip() {
-        let mut cpu = program(&[
-            0x90, 0x02,
-            0xA9, 0xFF,
-            0x00, // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0x90));
         cpu.p.set(Status::C, true);
         cpu.tick();
         cpu.tick();
@@ -1207,11 +1250,7 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_offset() {
-        let mut cpu = program(&[
-            0x90, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8,
-        ]);
+        let mut cpu = program(&branch_offset(0x90));
         cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
@@ -1220,11 +1259,7 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0x90, 0xFD, // jump to start (-3)
-            0x00        // unreachable
-        ]);
+        let mut cpu = program(&branch_negative_offset(0x90));
         cpu.tick();
         cpu.p.set(Status::C, false);
         cpu.tick();
@@ -1234,11 +1269,7 @@ mod tests {
 
     #[test]
     fn test_0xb0_bcs_no_skip() {
-        let mut cpu = program(&[
-            0xB0, 0x02,
-            0xA9, 0xFF,
-            0x00 // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0xB0));
         cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
@@ -1247,11 +1278,7 @@ mod tests {
 
     #[test]
     fn test_0xb0_bcs_offset() {
-        let mut cpu = program(&[
-            0xB0, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8
-        ]);
+        let mut cpu = program(&branch_offset(0xB0));
         cpu.p.set(Status::C, true);
         cpu.tick();
         cpu.tick();
@@ -1260,11 +1287,7 @@ mod tests {
 
     #[test]
     fn test_0xb0_bcs_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0xB0, 0xFD, // jump to start (-3)
-            0x00,       // unreachable
-        ]);
+        let mut cpu = program(&branch_negative_offset(0xB0));
         cpu.tick();
         cpu.p.set(Status::C, true);
         cpu.tick();
@@ -1274,11 +1297,7 @@ mod tests {
 
     #[test]
     fn test_0xf0_beq_no_skip() {
-        let mut cpu = program(&[
-            0xF0, 0x02,
-            0xA9, 0xFF,
-            0x00, // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0xF0));
         cpu.p.set(Status::Z, false);
         cpu.tick();
         cpu.tick();
@@ -1287,11 +1306,7 @@ mod tests {
 
     #[test]
     fn test_0xf0_beq_offset() {
-        let mut cpu = program(&[
-            0xF0, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8,
-        ]);
+        let mut cpu = program(&branch_offset(0xF0));
         cpu.p.set(Status::Z, true);
         cpu.tick();
         cpu.tick();
@@ -1300,11 +1315,7 @@ mod tests {
 
     #[test]
     fn test_0xf0_beq_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0xF0, 0xFD, // jump to start (-3)
-            0x00,       // unreachable
-        ]);
+        let mut cpu = program(&branch_negative_offset(0xF0));
         cpu.tick();
         cpu.p.set(Status::Z, true);
         cpu.tick();
@@ -1314,11 +1325,7 @@ mod tests {
 
     #[test]
     fn test_0x30_bmi_no_skip() {
-        let mut cpu = program(&[
-            0x30, 0x02,
-            0xA9, 0xFF,
-            0x00, // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0x30));
         cpu.p.set(Status::N, false);
         cpu.tick();
         cpu.tick();
@@ -1327,11 +1334,7 @@ mod tests {
 
     #[test]
     fn test_0x30_bmi_offset() {
-        let mut cpu = program(&[
-            0x30, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8,
-        ]);
+        let mut cpu = program(&branch_offset(0x30));
         cpu.p.set(Status::N, true);
         cpu.tick();
         cpu.tick();
@@ -1340,11 +1343,7 @@ mod tests {
 
     #[test]
     fn test_0x30_bmi_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0x30, 0xFD, // jump to start (-3)
-            0x00,       // unreachable
-        ]);
+        let mut cpu = program(&branch_negative_offset(0x30));
         cpu.tick();
         cpu.p.set(Status::N, true);
         cpu.tick();
@@ -1354,11 +1353,7 @@ mod tests {
 
     #[test]
     fn test_0xd0_bne_no_skip() {
-        let mut cpu = program(&[
-            0xD0, 0x02,
-            0xA9, 0xFF,
-            0x00, // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0xD0));
         cpu.p.set(Status::Z, true);
         cpu.tick();
         cpu.tick();
@@ -1367,11 +1362,7 @@ mod tests {
 
     #[test]
     fn test_0xd0_bne_offset() {
-        let mut cpu = program(&[
-            0xD0, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8,
-        ]);
+        let mut cpu = program(&branch_offset(0xD0));
         cpu.p.set(Status::Z, false);
         cpu.tick();
         cpu.tick();
@@ -1380,11 +1371,7 @@ mod tests {
 
     #[test]
     fn test_0xd0_bne_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0xD0, 0xFD, // jump to start (-3)
-            0x00        // unreachable
-        ]);
+        let mut cpu = program(&branch_negative_offset(0xD0));
         cpu.tick();
         cpu.p.set(Status::Z, false);
         cpu.tick();
@@ -1394,11 +1381,7 @@ mod tests {
 
     #[test]
     fn test_0x10_bpl_no_skip() {
-        let mut cpu = program(&[
-            0x10, 0x02,
-            0xA9, 0xFF,
-            0x00, // unreachable
-        ]);
+        let mut cpu = program(&branch_no_skip(0x10));
         cpu.p.set(Status::N, true);
         cpu.tick();
         cpu.tick();
@@ -1407,11 +1390,7 @@ mod tests {
 
     #[test]
     fn test_0x10_bpl_offset() {
-        let mut cpu = program(&[
-            0x10, 0x02,
-            0x00, 0x00, // unreachable
-            0xC8,
-        ]);
+        let mut cpu = program(&branch_offset(0x10));
         cpu.p.set(Status::N, false);
         cpu.tick();
         cpu.tick();
@@ -1420,13 +1399,65 @@ mod tests {
 
     #[test]
     fn test_0x10_bpl_negative_offset() {
-        let mut cpu = program(&[
-            0xC8,
-            0xD0, 0xFD,
-            0x00
-        ]);
+        let mut cpu = program(&branch_negative_offset(0x10));
         cpu.tick();
         cpu.p.set(Status::N, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
+    #[test]
+    fn test_0x50_bvc_no_skip() {
+        let mut cpu = program(&branch_no_skip(0x50));
+        cpu.p.set(Status::V, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0x50_bvc_offset() {
+        let mut cpu = program(&branch_offset(0x50));
+        cpu.p.set(Status::V, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0x50_bvc_negative_offset() {
+        let mut cpu = program(&branch_negative_offset(0x50));
+        cpu.tick();
+        cpu.p.set(Status::V, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
+    #[test]
+    fn test_0x70_bvs_no_skip() {
+        let mut cpu = program(&branch_no_skip(0x70));
+        cpu.p.set(Status::V, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0x70_bvs_offset() {
+        let mut cpu = program(&branch_offset(0x70));
+        cpu.p.set(Status::V, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0x70_bvs_negative_offset() {
+        let mut cpu = program(&branch_negative_offset(0x70));
+        cpu.tick();
+        cpu.p.set(Status::V, true);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 2);
