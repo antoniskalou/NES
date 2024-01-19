@@ -193,6 +193,7 @@ impl CPU {
             0xA8 => (TAY, Implicit),
             0xA9 => (LDA, Immediate(self.fetch())),
             0xAA => (TAX, Implicit),
+            0xB0 => (BCS, Relative(self.fetch() as i8)),
             0xB4 => (LDY, ZeroPageX(self.fetch())),
             0xB5 => (LDA, ZeroPageX(self.fetch())),
             0xB6 => (LDX, ZeroPageY(self.fetch())),
@@ -249,6 +250,16 @@ impl CPU {
                 self.p.set_zn_flags(self.a);
                 self.p.set(Status::C, o);
                 // TODO: overflow flag
+            }
+            (BCC, Relative(offset)) => {
+                if !self.p.contains(Status::C) {
+                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                }
+            }
+            (BCS, Relative(offset)) => {
+                if self.p.contains(Status::C) {
+                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                }
             }
             (CLC, Implicit) => {
                 self.p.set(Status::C, false);
@@ -342,11 +353,6 @@ impl CPU {
                 self.a = x;
                 self.p.set(Status::C, o);
                 self.p.set_zn_flags(self.a);
-            }
-            (BCC, Relative(offset)) => {
-                if !self.p.contains(Status::C) {
-                    self.pc = self.pc.wrapping_add_signed(offset as i16);
-                }
             }
             (INC, mode) => {
                 let data = self.read_operand(&mode);
@@ -1159,34 +1165,23 @@ mod tests {
     }
 
     #[test]
-    fn test_0x90_bcc_with_carry() {
+    fn test_0x90_bcc_no_skip() {
         let mut cpu = program(&[
             0x90, 0x02,
             0xA9, 0xFF,
-            0xC8, // shouldn't be reached in test
+            0x00, // unreachable
         ]);
         cpu.p.set(Status::C, true);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.a, 0xFF);
-        // shouldn't have run INY
-        assert_eq!(cpu.y, 0);
-    }
-
-    #[test]
-    fn test_0x90_bcc_no_carry() {
-        let mut cpu = program(&[0x90, 0x00, 0xC8]);
-        cpu.p.set(Status::C, false);
-        cpu.tick();
-        cpu.tick();
-        assert_eq!(cpu.y, 1);
     }
 
     #[test]
     fn test_0x90_bcc_offset() {
         let mut cpu = program(&[
             0x90, 0x02,
-            0x00, 0x00, // should never be reached
+            0x00, 0x00, // unreachable
             0xC8,
         ]);
         cpu.p.set(Status::C, false);
@@ -1199,8 +1194,8 @@ mod tests {
     fn test_0x90_bcc_negative_offset() {
         let mut cpu = program(&[
             0xC8,
-            0x90, 0xFD, // jump 3 back
-            0x00 // should never be reached
+            0x90, 0xFD, // jump to start (-3)
+            0x00        // unreachable
         ]);
         cpu.tick();
         cpu.p.set(Status::C, false);
@@ -1208,6 +1203,47 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.y, 2);
     }
+
+    #[test]
+    fn test_0xb0_bcs_no_skip() {
+        let mut cpu = program(&[
+            0xB0, 0x02,
+            0xA9, 0xFF,
+            0x00 // unreachable
+        ]);
+        cpu.p.set(Status::C, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0xb0_bcs_offset() {
+        let mut cpu = program(&[
+            0xB0, 0x02,
+            0x00, 0x00, // unreachable
+            0xC8
+        ]);
+        cpu.p.set(Status::C, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0xb0_bcs_negative_offset() {
+        let mut cpu = program(&[
+            0xC8,
+            0xB0, 0xFD, // jump to start (-3)
+            0x00,       // unreachable
+        ]);
+        cpu.tick();
+        cpu.p.set(Status::C, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
 
     #[test]
     fn test_0x69_adc_imm() {
