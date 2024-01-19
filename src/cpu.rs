@@ -56,6 +56,7 @@ impl Status {
     }
 }
 
+/// see https://www.nesdev.org/obelisk-6502-guide/reference.html
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms)]
 #[rustfmt::skip]
@@ -72,7 +73,6 @@ struct Instruction {
     mode: AddressingMode,
 }
 
-// naming conventions from https://www.masswerk.at/6502/6502_instruction_set.html
 #[derive(Debug)]
 pub struct CPU {
     // acccumulator
@@ -83,7 +83,7 @@ pub struct CPU {
     y: u8,
     // status register [NV-BDIZC]
     sr: Status,
-    // stacck pointer
+    // stack pointer
     sp: u8,
     // program counter
     pc: u16,
@@ -161,6 +161,9 @@ impl CPU {
             0x29 => (AND, Immediate(self.fetch())),
             0x35 => (AND, ZeroPageX(self.fetch())),
             0x38 => (SEC, Implicit),
+            0x46 => (LSR, ZeroPage(self.fetch())),
+            0x4A => (LSR, Accumulator),
+            0x56 => (LSR, ZeroPageX(self.fetch())),
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
             0x69 => (ADC, Immediate(self.fetch())),
@@ -216,7 +219,7 @@ impl CPU {
             }
             (ASL, mode) => {
                 let data = self.read_mode_address(&mode);
-                self.sr.set(Status::C, (data >> 7) & 1 > 0);
+                self.sr.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.wrapping_shl(1);
                 self.sr.set_zn_flags(x);
                 self.write_mode_address(mode, x);
@@ -276,6 +279,21 @@ impl CPU {
                 self.acc = self.read_mode_address(&mode);
                 self.sr.set_zn_flags(self.acc);
             }
+            (LDX, mode) => {
+                self.x = self.read_mode_address(&mode);
+                self.sr.set_zn_flags(self.x);
+            }
+            (LDY, mode) => {
+                self.y = self.read_mode_address(&mode);
+                self.sr.set_zn_flags(self.y);
+            }
+            (LSR, mode) => {
+                let data = self.read_mode_address(&mode);
+                self.sr.set(Status::C, data & 1 != 0);
+                let x = data.wrapping_shr(1);
+                self.sr.set_zn_flags(x);
+                self.write_mode_address(mode, x);
+            }
             (SEC, Implicit) => {
                 self.sr.set(Status::C, true);
             }
@@ -296,14 +314,6 @@ impl CPU {
                 let x = data.wrapping_add(1);
                 self.sr.set_zn_flags(x);
                 self.write_mode_address(mode, x);
-            }
-            (LDX, mode) => {
-                self.x = self.read_mode_address(&mode);
-                self.sr.set_zn_flags(self.x);
-            }
-            (LDY, mode) => {
-                self.y = self.read_mode_address(&mode);
-                self.sr.set_zn_flags(self.y);
             }
             (NOP, Implicit) => {}
             (INX, Implicit) => {
@@ -460,6 +470,115 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b1000_0000);
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x4a_lsr_acc() {
+        let mut cpu = program(&[0x4A]);
+        cpu.acc = 0b0000_0010;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b0000_0001);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x4a_lsr_acc_zero_flag() {
+        let mut cpu = program(&[0x4A]);
+        cpu.acc = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x4a_lsr_acc_negative_flag() {
+        let mut cpu = program(&[0x4A]);
+        cpu.acc = 0xFF;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x7F);
+        // its impossible for the N flag to be set, shifting right guarantees
+        // that there will be no 1 bit set bit in 7.
+        // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
+        assert!(!cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x4a_lsr_acc_carry_flag() {
+        let mut cpu = program(&[0x4A]);
+        cpu.acc = 0b0000_0011;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0x46_lsr_zpg() {
+        let mut cpu = program(&[0x46, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0010);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0001);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x46_lsr_zpg_zero_flag() {
+        let mut cpu = program(&[0x46, 0x20]);
+        cpu.wram.write_u8(0x20, 0);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x46_lsr_zpg_negative_flag() {
+        let mut cpu = program(&[0x46, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
+        assert!(!cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x46_lsr_zpg_carry_flag() {
+        let mut cpu = program(&[0x46, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0011);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
+    }
+
+    #[test]
+    fn test_0x56_lsr_zpgx() {
+        let mut cpu = program(&[0x56, 0x10]);
+        cpu.wram.write_u8(0x20, 0b0000_0010);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0001);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x56_lsr_zpgx_zero_flag() {
+        let mut cpu = program(&[0x56, 0x20]);
+        cpu.wram.write_u8(0x20, 0);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x56_lsr_zpgx_negative_flag() {
+        let mut cpu = program(&[0x56, 0x20]);
+        cpu.wram.write_u8(0x20, 0xFF);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
+        assert!(!cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x56_lsr_zpgx_carry_flag() {
+        let mut cpu = program(&[0x56, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0011);
+        cpu.x = 0;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::C);
     }
 
     #[test]
