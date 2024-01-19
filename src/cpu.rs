@@ -82,7 +82,7 @@ pub struct CPU {
     // Y register
     y: u8,
     // status register [NV-BDIZC]
-    sr: Status,
+    p: Status,
     // stack pointer
     sp: u8,
     // program counter
@@ -98,7 +98,7 @@ impl CPU {
             acc: 0,
             x: 0,
             y: 0,
-            sr: Status::U & Status::I,
+            p: Status::U & Status::I,
             sp: 0xFD,
             pc: 0,
             rom,
@@ -231,152 +231,152 @@ impl CPU {
             }
             (ASL, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, (data >> 7) & 1 != 0);
+                self.p.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.wrapping_shl(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (AND, mode) => {
                 let data = self.read_operand(&mode);
                 self.acc &= data;
-                self.sr.set_zn_flags(self.acc);
+                self.p.set_zn_flags(self.acc);
             }
             (ADC, mode) => {
                 let data = self.read_operand(&mode);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
-                self.sr.set_zn_flags(self.acc);
-                self.sr.set(Status::C, o);
+                self.p.set_zn_flags(self.acc);
+                self.p.set(Status::C, o);
                 // TODO: overflow flag
             }
             (CLC, Implicit) => {
-                self.sr.set(Status::C, false);
+                self.p.set(Status::C, false);
             }
             (CLD, Implicit) => {
-                self.sr.set(Status::D, false);
+                self.p.set(Status::D, false);
             }
             (CLI, Implicit) => {
-                self.sr.set(Status::I, false);
+                self.p.set(Status::I, false);
             }
             (CLV, Implicit) => {
-                self.sr.set(Status::V, false);
+                self.p.set(Status::V, false);
             }
             (CMP, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, self.acc >= data);
-                self.sr.set(Status::Z, self.acc == data);
-                self.sr.set_n_flag(self.acc);
+                self.p.set(Status::C, self.acc >= data);
+                self.p.set(Status::Z, self.acc == data);
+                self.p.set_n_flag(self.acc);
             }
             (CPX, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, self.x >= data);
-                self.sr.set(Status::Z, self.x == data);
-                self.sr.set_n_flag(self.x);
+                self.p.set(Status::C, self.x >= data);
+                self.p.set(Status::Z, self.x == data);
+                self.p.set_n_flag(self.x);
             }
             (DEC, mode) => {
                 let data = self.read_operand(&mode);
                 let x = data.wrapping_sub(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (DEX, Implicit) => {
                 self.x = self.x.wrapping_sub(1);
-                self.sr.set_zn_flags(self.x);
+                self.p.set_zn_flags(self.x);
             }
             (DEY, Implicit) => {
                 self.y = self.y.wrapping_sub(1);
-                self.sr.set_zn_flags(self.y);
+                self.p.set_zn_flags(self.y);
             }
             (LDA, mode) => {
                 self.acc = self.read_operand(&mode);
-                self.sr.set_zn_flags(self.acc);
+                self.p.set_zn_flags(self.acc);
             }
             (LDX, mode) => {
                 self.x = self.read_operand(&mode);
-                self.sr.set_zn_flags(self.x);
+                self.p.set_zn_flags(self.x);
             }
             (LDY, mode) => {
                 self.y = self.read_operand(&mode);
-                self.sr.set_zn_flags(self.y);
+                self.p.set_zn_flags(self.y);
             }
             (LSR, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, data & 1 != 0);
+                self.p.set(Status::C, data & 1 != 0);
                 let x = data.wrapping_shr(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (ORA, mode) => {
                 let data = self.read_operand(&mode);
                 self.acc |= data;
-                self.sr.set_zn_flags(self.acc);
+                self.p.set_zn_flags(self.acc);
             }
             (ROL, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, (data >> 7) & 1 != 0);
+                self.p.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.rotate_left(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (ROR, mode) => {
                 let data = self.read_operand(&mode);
-                self.sr.set(Status::C, data & 1 != 0);
+                self.p.set(Status::C, data & 1 != 0);
                 let x = data.rotate_right(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (SEC, Implicit) => {
-                self.sr.set(Status::C, true);
+                self.p.set(Status::C, true);
             }
             (SED, Implicit) => {
-                self.sr.set(Status::D, true);
+                self.p.set(Status::D, true);
             }
             (SEI, Implicit) => {
-                self.sr.set(Status::I, true);
+                self.p.set(Status::I, true);
             }
             (STA, mode) => self.write_operand(mode, self.acc),
             (SBC, mode) => {
                 let data = self.read_operand(&mode);
                 let (x, o) = self.acc.overflowing_sub(data);
                 self.acc = x;
-                self.sr.set(Status::C, o);
-                self.sr.set_zn_flags(self.acc);
+                self.p.set(Status::C, o);
+                self.p.set_zn_flags(self.acc);
             }
             (BCC, Relative(offset)) => {
-                if self.sr.contains(Status::C) {
+                if self.p.contains(Status::C) {
                     self.pc = self.pc.wrapping_add(offset as u16);
                 }
             }
             (INC, mode) => {
                 let data = self.read_operand(&mode);
                 let x = data.wrapping_add(1);
-                self.sr.set_zn_flags(x);
+                self.p.set_zn_flags(x);
                 self.write_operand(mode, x);
             }
             (NOP, Implicit) => {}
             (INX, Implicit) => {
                 self.x = self.x.wrapping_add(1);
-                self.sr.set_zn_flags(self.x);
+                self.p.set_zn_flags(self.x);
             }
             (INY, Implicit) => {
                 self.y = self.y.wrapping_add(1);
-                self.sr.set_zn_flags(self.y);
+                self.p.set_zn_flags(self.y);
             }
             (TAX, Implicit) => {
                 self.x = self.acc;
-                self.sr.set_zn_flags(self.x);
+                self.p.set_zn_flags(self.x);
             }
             (TAY, Implicit) => {
                 self.y = self.acc;
-                self.sr.set_zn_flags(self.y);
+                self.p.set_zn_flags(self.y);
             }
             (TXA, Implicit) => {
                 self.acc = self.x;
-                self.sr.set_zn_flags(self.acc);
+                self.p.set_zn_flags(self.acc);
             }
             (TYA, Implicit) => {
                 self.acc = self.y;
-                self.sr.set_zn_flags(self.acc);
+                self.p.set_zn_flags(self.acc);
             }
             (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
             // programming error
@@ -410,14 +410,14 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
     fn test_0x06_asl_zpg_zero_flag() {
         let mut cpu = program(&[0x06, 0x20]);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -427,7 +427,7 @@ mod tests {
         cpu.tick();
         // multiplies by 2
         assert_eq!(cpu.wram.read_u8(0x20), 0x80);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -435,7 +435,7 @@ mod tests {
         let mut cpu = program(&[0x06, 0x20]);
         cpu.wram.write_u8(0x20, 0b1000_0000);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -444,7 +444,7 @@ mod tests {
         cpu.acc = 0b0000_0001;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0000_0010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -452,7 +452,7 @@ mod tests {
         let mut cpu = program(&[0x0A]);
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -461,7 +461,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.tick();
         assert_eq!(cpu.acc, 0x80);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -469,7 +469,7 @@ mod tests {
         let mut cpu = program(&[0x0A]);
         cpu.acc = 0b1000_0000;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -488,7 +488,7 @@ mod tests {
         cpu.x = 0;
         cpu.wram.write_u8(0x20, 0);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -498,7 +498,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x80);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -507,7 +507,7 @@ mod tests {
         cpu.x = 0;
         cpu.wram.write_u8(0x20, 0b1000_0000);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -516,7 +516,7 @@ mod tests {
         cpu.acc = 0b0000_0010;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0000_0001);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -524,7 +524,7 @@ mod tests {
         let mut cpu = program(&[0x4A]);
         cpu.acc = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -536,7 +536,7 @@ mod tests {
         // its impossible for the N flag to be set, shifting right guarantees
         // that there will be no 1 bit set bit in 7.
         // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
-        assert!(!cpu.sr.contains(Status::N));
+        assert!(!cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -544,7 +544,7 @@ mod tests {
         let mut cpu = program(&[0x4A]);
         cpu.acc = 0b0000_0011;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -553,7 +553,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0010);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0001);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -561,7 +561,7 @@ mod tests {
         let mut cpu = program(&[0x46, 0x20]);
         cpu.wram.write_u8(0x20, 0);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -570,7 +570,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
-        assert!(!cpu.sr.contains(Status::N));
+        assert!(!cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -578,7 +578,7 @@ mod tests {
         let mut cpu = program(&[0x46, 0x20]);
         cpu.wram.write_u8(0x20, 0b0000_0011);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -588,7 +588,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0001);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -597,7 +597,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -607,7 +607,7 @@ mod tests {
         cpu.x = 0;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
-        assert!(!cpu.sr.contains(Status::N));
+        assert!(!cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -616,39 +616,39 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0011);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
     fn test_0x18_clc() {
         let mut cpu = program(&[0x18]);
-        cpu.sr.set(Status::C, true);
+        cpu.p.set(Status::C, true);
         cpu.tick();
-        assert_eq!(cpu.sr.contains(Status::C), false);
+        assert_eq!(cpu.p.contains(Status::C), false);
     }
 
     #[test]
     fn test_0xd8_cld() {
         let mut cpu = program(&[0xD8]);
-        cpu.sr.set(Status::D, true);
+        cpu.p.set(Status::D, true);
         cpu.tick();
-        assert_eq!(cpu.sr.contains(Status::D), false);
+        assert_eq!(cpu.p.contains(Status::D), false);
     }
 
     #[test]
     fn test_0x58_cli() {
         let mut cpu = program(&[0x58]);
-        cpu.sr.set(Status::I, true);
+        cpu.p.set(Status::I, true);
         cpu.tick();
-        assert_eq!(cpu.sr.contains(Status::I), false);
+        assert_eq!(cpu.p.contains(Status::I), false);
     }
 
     #[test]
     fn test_0xb8_clv() {
         let mut cpu = program(&[0xB8]);
-        cpu.sr.set(Status::V, true);
+        cpu.p.set(Status::V, true);
         cpu.tick();
-        assert_eq!(cpu.sr.contains(Status::V), false);
+        assert_eq!(cpu.p.contains(Status::V), false);
     }
 
     #[test]
@@ -658,7 +658,7 @@ mod tests {
         cpu.acc = 0b1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -666,7 +666,7 @@ mod tests {
         let mut cpu = program(&[0x25, 0]);
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -675,7 +675,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.acc = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -684,7 +684,7 @@ mod tests {
         cpu.acc = 0b1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -692,7 +692,7 @@ mod tests {
         let mut cpu = program(&[0x29, 0]);
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -700,7 +700,7 @@ mod tests {
         let mut cpu = program(&[0x29, 0xFF]);
         cpu.acc = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
         cpu.acc = 0b1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -721,7 +721,7 @@ mod tests {
         cpu.x = 0;
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -731,7 +731,7 @@ mod tests {
         cpu.x = 0;
         cpu.acc = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -740,7 +740,7 @@ mod tests {
         cpu.acc = 0b0000_1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_1111);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -749,7 +749,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.tick();
         assert_eq!(cpu.acc, 0x00);
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -758,7 +758,7 @@ mod tests {
         cpu.acc = 0x80;
         cpu.tick();
         assert_eq!(cpu.acc, 0x80);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -768,7 +768,7 @@ mod tests {
         cpu.acc = 0b0000_1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_1111);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -778,7 +778,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.tick();
         assert_eq!(cpu.acc, 0x00);
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -788,7 +788,7 @@ mod tests {
         cpu.acc = 0x80;
         cpu.tick();
         assert_eq!(cpu.acc, 0x80);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -799,7 +799,7 @@ mod tests {
         cpu.acc = 0b0000_1111;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_1111);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -810,7 +810,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.tick();
         assert_eq!(cpu.acc, 0x00);
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -821,7 +821,7 @@ mod tests {
         cpu.acc = 0x80;
         cpu.tick();
         assert_eq!(cpu.acc, 0x80);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -830,7 +830,7 @@ mod tests {
         cpu.acc = 0b0000_1010;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0001_0100);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -839,7 +839,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.tick();
         assert_eq!(cpu.acc, 0x00);
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -848,7 +848,7 @@ mod tests {
         cpu.acc = 0b0101_0101;
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010_1010);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -857,11 +857,11 @@ mod tests {
         cpu.acc = 0b1010_1010;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_0101);
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
         // flag cleared on second tick
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010_1010);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -870,7 +870,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_1010);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0001_0100);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -878,7 +878,7 @@ mod tests {
         let mut cpu = program(&[0x26, 0x20]);
         cpu.wram.write_u8(0x20, 0x00);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -887,7 +887,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -896,10 +896,10 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b1010_1010);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -909,7 +909,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0001_0100);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -918,7 +918,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x00);
         cpu.x = 0x00;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -928,7 +928,7 @@ mod tests {
         cpu.x = 0x00;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -938,10 +938,10 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -950,7 +950,7 @@ mod tests {
         cpu.acc = 0b1010_1010;
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_0101);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -958,7 +958,7 @@ mod tests {
         let mut cpu = program(&[0x6A]);
         cpu.acc = 0x00;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -968,7 +968,7 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.acc, 0b1000_0000);
         // will also contain C
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -978,10 +978,10 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.acc, 0b1010_1010);
         // will also contain N
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
         cpu.tick();
         assert_eq!(cpu.acc, 0b0101_0101);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -990,7 +990,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b1010_1010);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -998,7 +998,7 @@ mod tests {
         let mut cpu = program(&[0x66, 0x20]);
         cpu.wram.write_u8(0x20, 0x00);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1007,7 +1007,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1000_0000);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1016,10 +1016,10 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -1029,7 +1029,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1039,7 +1039,7 @@ mod tests {
         cpu.x = 0x00;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x00);
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1048,7 +1048,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0b0000_0001);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1000_0000);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1058,10 +1058,10 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert!(!cpu.sr.contains(Status::C));
+        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -1069,21 +1069,21 @@ mod tests {
         let mut cpu = program(&[0xA9, 0x40]);
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
     fn test_0xa9_lda_imm_zero_flag() {
         let mut cpu = program(&[0xA9, 0x00]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
     fn test_0xa9_lda_imm_negative_flag() {
         let mut cpu = program(&[0xA9, 0x80]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1092,7 +1092,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1100,7 +1100,7 @@ mod tests {
         let mut cpu = program(&[0xA5, 0x20]);
         cpu.wram.write_u8(0x20, 0);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1108,7 +1108,7 @@ mod tests {
         let mut cpu = program(&[0xA5, 0x20]);
         cpu.wram.write_u8(0x20, 0x80);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1118,7 +1118,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1127,7 +1127,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1136,7 +1136,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x80);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1145,7 +1145,7 @@ mod tests {
         cpu.acc = 0xFF;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1160,7 +1160,7 @@ mod tests {
     #[test]
     fn test_0x90_bcc_with_carry() {
         let mut cpu = program(&[0x90, 0x00, 0xC8]);
-        cpu.sr.set(Status::C, true);
+        cpu.p.set(Status::C, true);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 1);
@@ -1173,7 +1173,7 @@ mod tests {
             0xFF, 0xFF, // should never be reached
             0xC8,
         ]);
-        cpu.sr.set(Status::C, true);
+        cpu.p.set(Status::C, true);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 1);
@@ -1191,7 +1191,7 @@ mod tests {
             0xA9, 0xFF,
             0xC8, // shouldn't be reached in test
         ]);
-        cpu.sr.set(Status::C, false);
+        cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.acc, 0xFF);
@@ -1205,7 +1205,7 @@ mod tests {
         cpu.acc = 0x04;
         cpu.tick();
         assert_eq!(cpu.acc, 0x44);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1213,7 +1213,7 @@ mod tests {
         let mut cpu = program(&[0x69, 0x0]);
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1221,7 +1221,7 @@ mod tests {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.acc = 0x7F;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1229,7 +1229,7 @@ mod tests {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.acc = 0xFF;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -1239,7 +1239,7 @@ mod tests {
         cpu.acc = 0x04;
         cpu.tick();
         assert_eq!(cpu.acc, 0x44);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1247,7 +1247,7 @@ mod tests {
         let mut cpu = program(&[0x65, 0x20]);
         cpu.acc = 0;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1256,7 +1256,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 1);
         cpu.acc = 0x7F;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1265,7 +1265,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 1);
         cpu.acc = 0xFF;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -1276,7 +1276,7 @@ mod tests {
         cpu.acc = 0x04;
         cpu.tick();
         assert_eq!(cpu.acc, 0x44);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1285,7 +1285,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.tick();
         assert_eq!(cpu.acc, 0x20);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1301,7 +1301,7 @@ mod tests {
         let mut cpu = program(&[0xE6, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1309,7 +1309,7 @@ mod tests {
         let mut cpu = program(&[0xE6, 0x20]);
         cpu.wram.write_u8(0x20, 0x7F);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1319,7 +1319,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x41);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1328,7 +1328,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1337,7 +1337,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x7F);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1345,21 +1345,21 @@ mod tests {
         let mut cpu = program(&[0xA2, 0x40]);
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
     fn test_0xa2_ldx_imm_zero_flag() {
         let mut cpu = program(&[0xA2, 0]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
     fn test_0xa2_ldx_imm_negative_flag() {
         let mut cpu = program(&[0xA2, 0x80]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1368,7 +1368,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1376,7 +1376,7 @@ mod tests {
         let mut cpu = program(&[0xA6, 0x20]);
         cpu.wram.write_u8(0x20, 0);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1384,7 +1384,7 @@ mod tests {
         let mut cpu = program(&[0xA6, 0x20]);
         cpu.wram.write_u8(0x20, 0x80);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1394,7 +1394,7 @@ mod tests {
         cpu.y = 0x10;
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1403,7 +1403,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0);
         cpu.y = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1412,7 +1412,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x80);
         cpu.y = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1420,21 +1420,21 @@ mod tests {
         let mut cpu = program(&[0xA0, 0x40]);
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
     fn test_0xa0_ldy_imm_zero_flag() {
         let mut cpu = program(&[0xA0, 0x00]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
     fn test_0xa0_ldy_imm_negative_flag() {
         let mut cpu = program(&[0xA0, 0x80]);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1443,7 +1443,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1451,7 +1451,7 @@ mod tests {
         let mut cpu = program(&[0xA4, 0x20]);
         cpu.wram.write_u8(0x20, 0);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1459,7 +1459,7 @@ mod tests {
         let mut cpu = program(&[0xA4, 0x20]);
         cpu.wram.write_u8(0x20, 0x80);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1469,7 +1469,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1478,7 +1478,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1487,7 +1487,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x80);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1496,7 +1496,7 @@ mod tests {
         cpu.x = 0x40;
         cpu.tick();
         assert_eq!(cpu.x, 0x41);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1505,7 +1505,7 @@ mod tests {
         cpu.x = 0xFF;
         cpu.tick();
         assert_eq!(cpu.x, 0);
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1513,7 +1513,7 @@ mod tests {
         let mut cpu = program(&[0xE8]);
         cpu.x = 0x7F;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1522,7 +1522,7 @@ mod tests {
         cpu.y = 0x40;
         cpu.tick();
         assert_eq!(cpu.y, 0x41);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1531,7 +1531,7 @@ mod tests {
         cpu.y = 0xFF;
         cpu.tick();
         assert_eq!(cpu.y, 0);
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1539,7 +1539,7 @@ mod tests {
         let mut cpu = program(&[0xC8]);
         cpu.y = 0x7F;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1548,7 +1548,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x3F);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1556,7 +1556,7 @@ mod tests {
         let mut cpu = program(&[0xC6, 0x20]);
         cpu.wram.write_u8(0x20, 0x01);
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1565,7 +1565,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x00);
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1575,7 +1575,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x3F);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1584,7 +1584,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x01);
         cpu.x = 0;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::Z);
+        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1594,7 +1594,7 @@ mod tests {
         cpu.x = 0;
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1603,7 +1603,7 @@ mod tests {
         cpu.x = 2;
         cpu.tick();
         assert_eq!(cpu.x, 1);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1620,7 +1620,7 @@ mod tests {
         cpu.x = 1;
         cpu.tick();
         assert_eq!(cpu.x, 0);
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1629,7 +1629,7 @@ mod tests {
         cpu.x = 0xFF;
         cpu.tick();
         assert_eq!(cpu.x, 0xFE);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1638,7 +1638,7 @@ mod tests {
         cpu.y = 2;
         cpu.tick();
         assert_eq!(cpu.y, 1);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1655,7 +1655,7 @@ mod tests {
         cpu.y = 1;
         cpu.tick();
         assert_eq!(cpu.y, 0);
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1664,7 +1664,7 @@ mod tests {
         cpu.y = 0xFF;
         cpu.tick();
         assert_eq!(cpu.y, 0xFE);
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1677,25 +1677,25 @@ mod tests {
     #[test]
     fn test_0x38_sec() {
         let mut cpu = program(&[0x38]);
-        cpu.sr.set(Status::C, false);
+        cpu.p.set(Status::C, false);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
     fn test_0xf8_sed() {
         let mut cpu = program(&[0xF8]);
-        cpu.sr.set(Status::D, false);
+        cpu.p.set(Status::D, false);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::D));
+        assert!(cpu.p.contains(Status::D));
     }
 
     #[test]
     fn test_0x78_sei() {
         let mut cpu = program(&[0x78]);
-        cpu.sr.set(Status::I, false);
+        cpu.p.set(Status::I, false);
         cpu.tick();
-        assert!(cpu.sr.contains(Status::I));
+        assert!(cpu.p.contains(Status::I));
     }
 
     #[test]
@@ -1705,7 +1705,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1714,7 +1714,7 @@ mod tests {
         cpu.x = 0x40;
         cpu.acc = 0x00;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1723,7 +1723,7 @@ mod tests {
         cpu.x = 0x00;
         cpu.acc = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1733,7 +1733,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1742,7 +1742,7 @@ mod tests {
         cpu.y = 0x40;
         cpu.acc = 0x00;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1751,7 +1751,7 @@ mod tests {
         cpu.y = 0x00;
         cpu.acc = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1761,7 +1761,7 @@ mod tests {
         cpu.x = 0x40;
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1770,7 +1770,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.x = 0x00;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1779,7 +1779,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.x = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1789,7 +1789,7 @@ mod tests {
         cpu.y = 0x40;
         cpu.tick();
         assert_eq!(cpu.acc, 0x40);
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1798,7 +1798,7 @@ mod tests {
         cpu.acc = 0x40;
         cpu.y = 0x00;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
+        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -1807,7 +1807,7 @@ mod tests {
         cpu.acc = 0x00;
         cpu.y = 0x80;
         cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1815,7 +1815,7 @@ mod tests {
         let mut cpu = program(&[0xC9, 0x40]);
         cpu.acc = 0x40;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C | Status::Z)
+        assert_eq!(cpu.p, Status::C | Status::Z)
     }
 
     #[test]
@@ -1823,7 +1823,7 @@ mod tests {
         let mut cpu = program(&[0xC9, 0x40]);
         cpu.acc = 0x41;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -1831,7 +1831,7 @@ mod tests {
         let mut cpu = program(&[0xC9, 0x41]);
         cpu.acc = 0x40;
         cpu.tick();
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1839,7 +1839,7 @@ mod tests {
         let mut cpu = program(&[0xC9, 0xFF]);
         cpu.acc = 0x80;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1848,7 +1848,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.acc = 0x40;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C | Status::Z);
+        assert_eq!(cpu.p, Status::C | Status::Z);
     }
 
     #[test]
@@ -1857,7 +1857,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.acc = 0x41;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -1866,7 +1866,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x41);
         cpu.acc = 0x40;
         cpu.tick();
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1875,7 +1875,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.acc = 0x80;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1885,7 +1885,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.acc = 0x40;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C | Status::Z);
+        assert_eq!(cpu.p, Status::C | Status::Z);
     }
 
     #[test]
@@ -1895,7 +1895,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.acc = 0x41;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -1905,7 +1905,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.acc = 0x40;
         cpu.tick();
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1915,7 +1915,7 @@ mod tests {
         cpu.x = 0x10;
         cpu.acc = 0x80;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1923,7 +1923,7 @@ mod tests {
         let mut cpu = program(&[0xE0, 0x40]);
         cpu.x = 0x40;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C | Status::Z);
+        assert_eq!(cpu.p, Status::C | Status::Z);
     }
 
     #[test]
@@ -1931,7 +1931,7 @@ mod tests {
         let mut cpu = program(&[0xE0, 0x40]);
         cpu.x = 0x41;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -1939,7 +1939,7 @@ mod tests {
         let mut cpu = program(&[0xE0, 0x41]);
         cpu.x = 0x40;
         cpu.tick();
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1947,7 +1947,7 @@ mod tests {
         let mut cpu = program(&[0xE0, 0xFF]);
         cpu.x = 0x80;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 
     #[test]
@@ -1956,7 +1956,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x40;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C | Status::Z);
+        assert_eq!(cpu.p, Status::C | Status::Z);
     }
 
     #[test]
@@ -1965,7 +1965,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x41;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::C);
+        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -1974,7 +1974,7 @@ mod tests {
         cpu.wram.write_u8(0x20, 0x41);
         cpu.x = 0x40;
         cpu.tick();
-        assert!(cpu.sr.is_empty());
+        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1983,6 +1983,6 @@ mod tests {
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0x80;
         cpu.tick();
-        assert_eq!(cpu.sr, Status::N);
+        assert_eq!(cpu.p, Status::N);
     }
 }
