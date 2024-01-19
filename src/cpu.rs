@@ -106,7 +106,7 @@ impl CPU {
         }
     }
 
-    fn read_mode_address(&self, mode: &AddressingMode) -> u8 {
+    fn read_operand(&self, mode: &AddressingMode) -> u8 {
         use AddressingMode::*;
         match *mode {
             Immediate(data) => data,
@@ -124,7 +124,7 @@ impl CPU {
         }
     }
 
-    fn write_mode_address(&mut self, mode: AddressingMode, data: u8) {
+    fn write_operand(&mut self, mode: AddressingMode, data: u8) {
         use AddressingMode::*;
         match mode {
             Accumulator => self.acc = data,
@@ -230,19 +230,19 @@ impl CPU {
                 todo!("interrupts");
             }
             (ASL, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.wrapping_shl(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (AND, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.acc &= data;
                 self.sr.set_zn_flags(self.acc);
             }
             (ADC, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 let (x, o) = self.acc.overflowing_add(data);
                 self.acc = x;
                 self.sr.set_zn_flags(self.acc);
@@ -262,22 +262,22 @@ impl CPU {
                 self.sr.set(Status::V, false);
             }
             (CMP, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, self.acc >= data);
                 self.sr.set(Status::Z, self.acc == data);
                 self.sr.set_n_flag(self.acc);
             }
             (CPX, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, self.x >= data);
                 self.sr.set(Status::Z, self.x == data);
                 self.sr.set_n_flag(self.x);
             }
             (DEC, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 let x = data.wrapping_sub(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (DEX, Implicit) => {
                 self.x = self.x.wrapping_sub(1);
@@ -288,42 +288,42 @@ impl CPU {
                 self.sr.set_zn_flags(self.y);
             }
             (LDA, mode) => {
-                self.acc = self.read_mode_address(&mode);
+                self.acc = self.read_operand(&mode);
                 self.sr.set_zn_flags(self.acc);
             }
             (LDX, mode) => {
-                self.x = self.read_mode_address(&mode);
+                self.x = self.read_operand(&mode);
                 self.sr.set_zn_flags(self.x);
             }
             (LDY, mode) => {
-                self.y = self.read_mode_address(&mode);
+                self.y = self.read_operand(&mode);
                 self.sr.set_zn_flags(self.y);
             }
             (LSR, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, data & 1 != 0);
                 let x = data.wrapping_shr(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (ORA, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.acc |= data;
                 self.sr.set_zn_flags(self.acc);
             }
             (ROL, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.rotate_left(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (ROR, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 self.sr.set(Status::C, data & 1 != 0);
                 let x = data.rotate_right(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (SEC, Implicit) => {
                 self.sr.set(Status::C, true);
@@ -334,17 +334,24 @@ impl CPU {
             (SEI, Implicit) => {
                 self.sr.set(Status::I, true);
             }
-            (STA, mode) => self.write_mode_address(mode, self.acc),
+            (STA, mode) => self.write_operand(mode, self.acc),
+            (SBC, mode) => {
+                let data = self.read_operand(&mode);
+                let (x, o) = self.acc.overflowing_sub(data);
+                self.acc = x;
+                self.sr.set(Status::C, o);
+                self.sr.set_zn_flags(self.acc);
+            }
             (BCC, Relative(offset)) => {
                 if self.sr.contains(Status::C) {
                     self.pc = self.pc.wrapping_add(offset as u16);
                 }
             }
             (INC, mode) => {
-                let data = self.read_mode_address(&mode);
+                let data = self.read_operand(&mode);
                 let x = data.wrapping_add(1);
                 self.sr.set_zn_flags(x);
-                self.write_mode_address(mode, x);
+                self.write_operand(mode, x);
             }
             (NOP, Implicit) => {}
             (INX, Implicit) => {
@@ -1274,7 +1281,11 @@ mod tests {
 
     #[test]
     fn test_0xe9_sbc_imm() {
-        
+        let mut cpu = program(&[0xE9, 0x20]);
+        cpu.acc = 0x40;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x20);
+        assert!(cpu.sr.is_empty());
     }
 
     #[test]
