@@ -75,7 +75,7 @@ struct Instruction {
 
 #[derive(Debug)]
 pub struct CPU {
-    // acccumulator
+    // accumulator
     acc: u8,
     // X register
     x: u8,
@@ -172,8 +172,11 @@ impl CPU {
             0x56 => (LSR, ZeroPageX(self.fetch())),
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
+            0x66 => (ROR, ZeroPage(self.fetch())),
             0x69 => (ADC, Immediate(self.fetch())),
+            0x6A => (ROR, Accumulator),
             0x75 => (ADC, ZeroPageX(self.fetch())),
+            0x76 => (ROR, ZeroPageX(self.fetch())),
             0x78 => (SEI, Implicit),
             0x85 => (STA, ZeroPage(self.fetch())),
             0x88 => (DEY, Implicit),
@@ -309,6 +312,13 @@ impl CPU {
                 let data = self.read_mode_address(&mode);
                 self.sr.set(Status::C, (data >> 7) & 1 != 0);
                 let x = data.rotate_left(1);
+                self.sr.set_zn_flags(x);
+                self.write_mode_address(mode, x);
+            }
+            (ROR, mode) => {
+                let data = self.read_mode_address(&mode);
+                self.sr.set(Status::C, data & 1 != 0);
+                let x = data.rotate_right(1);
                 self.sr.set_zn_flags(x);
                 self.write_mode_address(mode, x);
             }
@@ -925,6 +935,126 @@ mod tests {
     }
 
     #[test]
+    fn test_0x6a_ror_imm() {
+        let mut cpu = program(&[0x6A]);
+        cpu.acc = 0b1010_1010;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b0101_0101);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x6a_ror_imm_zero_flag() {
+        let mut cpu = program(&[0x6A]);
+        cpu.acc = 0x00;
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x6a_ror_imm_negative_flag() {
+        let mut cpu = program(&[0x6A]);
+        cpu.acc = 0b0000_0001;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b1000_0000);
+        // will also contain C
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x6a_ror_imm_carry_flag() {
+        let mut cpu = program(&[0x6A, 0x6A]);
+        cpu.acc = 0b0101_0101;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b1010_1010);
+        // will also contain N
+        assert!(cpu.sr.contains(Status::C));
+        cpu.tick();
+        assert_eq!(cpu.acc, 0b0101_0101);
+        assert!(!cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x66_ror_zpg() {
+        let mut cpu = program(&[0x66, 0x20]);
+        cpu.wram.write_u8(0x20, 0b1010_1010);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x66_ror_zpg_zero_flag() {
+        let mut cpu = program(&[0x66, 0x20]);
+        cpu.wram.write_u8(0x20, 0x00);
+        cpu.tick();
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x66_ror_zpg_negative_flag() {
+        let mut cpu = program(&[0x66, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0001);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b1000_0000);
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x66_ror_zpg_carry_flag() {
+        let mut cpu = program(&[0x66, 0x20, 0x66, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0101_0101);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
+        assert!(cpu.sr.contains(Status::C));
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
+        assert!(!cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x76_ror_zpgx() {
+        let mut cpu = program(&[0x76, 0x10]);
+        cpu.wram.write_u8(0x20, 0b1010_1010);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x76_ror_zpgx_zero_flag() {
+        let mut cpu = program(&[0x76, 0x20]);
+        cpu.wram.write_u8(0x20, 0x00);
+        cpu.x = 0x00;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0x00);
+        assert_eq!(cpu.sr, Status::Z);
+    }
+
+    #[test]
+    fn test_0x76_ror_zpgx_negative_flag() {
+        let mut cpu = program(&[0x76, 0x20]);
+        cpu.wram.write_u8(0x20, 0b0000_0001);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b1000_0000);
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x76_ror_zpgx_carry_flag() {
+        let mut cpu = program(&[0x76, 0x10, 0x76, 0x10]);
+        cpu.wram.write_u8(0x20, 0b0101_0101);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
+        assert!(cpu.sr.contains(Status::C));
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
+        assert!(!cpu.sr.contains(Status::C));
+    }
+
+    #[test]
     fn test_0xa9_lda_imm() {
         let mut cpu = program(&[0xA9, 0x40]);
         cpu.tick();
@@ -1060,42 +1190,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x65_adc() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.acc = 0x04;
-        cpu.tick();
-        assert_eq!(cpu.acc, 0x44);
-        assert!(cpu.sr.is_empty());
-    }
-
-    #[test]
-    fn test_0x65_adc_zero_flag() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.acc = 0;
-        cpu.tick();
-        assert!(cpu.sr.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_0x65_adc_negative_flag() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 1);
-        cpu.acc = 0x7F;
-        cpu.tick();
-        assert!(cpu.sr.contains(Status::N));
-    }
-
-    #[test]
-    fn test_0x65_adc_carry_flag() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 1);
-        cpu.acc = 0xFF;
-        cpu.tick();
-        assert!(cpu.sr.contains(Status::C));
-    }
-
-    #[test]
     fn test_0x69_adc_imm() {
         let mut cpu = program(&[0x69, 0x40]);
         cpu.acc = 0x04;
@@ -1123,6 +1217,42 @@ mod tests {
     #[test]
     fn test_0x69_adc_imm_carry_flag() {
         let mut cpu = program(&[0x69, 0x01]);
+        cpu.acc = 0xFF;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::C));
+    }
+
+    #[test]
+    fn test_0x65_adc_zpg() {
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.acc = 0x04;
+        cpu.tick();
+        assert_eq!(cpu.acc, 0x44);
+        assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0x65_adc_zpg_zero_flag() {
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.acc = 0;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::Z));
+    }
+
+    #[test]
+    fn test_0x65_adc_zpg_negative_flag() {
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 1);
+        cpu.acc = 0x7F;
+        cpu.tick();
+        assert!(cpu.sr.contains(Status::N));
+    }
+
+    #[test]
+    fn test_0x65_adc_zpg_carry_flag() {
+        let mut cpu = program(&[0x65, 0x20]);
+        cpu.wram.write_u8(0x20, 1);
         cpu.acc = 0xFF;
         cpu.tick();
         assert!(cpu.sr.contains(Status::C));
