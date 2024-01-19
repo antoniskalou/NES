@@ -206,9 +206,12 @@ impl CPU {
             0xD8 => (CLD, Implicit),
             0xE0 => (CPX, Immediate(self.fetch())),
             0xE4 => (CPX, ZeroPage(self.fetch())),
+            0xE5 => (SBC, ZeroPage(self.fetch())),
             0xE6 => (INC, ZeroPage(self.fetch())),
             0xE8 => (INX, Implicit),
+            0xE9 => (SBC, Immediate(self.fetch())),
             0xEA => (NOP, Implicit),
+            0xF5 => (SBC, ZeroPageX(self.fetch())),
             0xF6 => (INC, ZeroPageX(self.fetch())),
             0xF8 => (SED, Implicit),
             _ => (Illegal(opcode), Implicit),
@@ -815,7 +818,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x2a_rol_imm() {
+    fn test_0x2a_rol_acc() {
         let mut cpu = program(&[0x2A]);
         cpu.acc = 0b0000_1010;
         cpu.tick();
@@ -824,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x2a_rol_imm_zero_flag() {
+    fn test_0x2a_rol_acc_zero_flag() {
         let mut cpu = program(&[0x2A]);
         cpu.acc = 0x00;
         cpu.tick();
@@ -833,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x2a_rol_imm_negative_flag() {
+    fn test_0x2a_rol_acc_negative_flag() {
         let mut cpu = program(&[0x2A]);
         cpu.acc = 0b0101_0101;
         cpu.tick();
@@ -842,7 +845,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x2a_rol_imm_carry_flag() {
+    fn test_0x2a_rol_acc_carry_flag() {
         let mut cpu = program(&[0x2A, 0x2A]);
         cpu.acc = 0b1010_1010;
         cpu.tick();
@@ -935,7 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x6a_ror_imm() {
+    fn test_0x6a_ror_acc() {
         let mut cpu = program(&[0x6A]);
         cpu.acc = 0b1010_1010;
         cpu.tick();
@@ -944,7 +947,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x6a_ror_imm_zero_flag() {
+    fn test_0x6a_ror_acc_zero_flag() {
         let mut cpu = program(&[0x6A]);
         cpu.acc = 0x00;
         cpu.tick();
@@ -952,7 +955,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x6a_ror_imm_negative_flag() {
+    fn test_0x6a_ror_acc_negative_flag() {
         let mut cpu = program(&[0x6A]);
         cpu.acc = 0b0000_0001;
         cpu.tick();
@@ -962,7 +965,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x6a_ror_imm_carry_flag() {
+    fn test_0x6a_ror_acc_carry_flag() {
         let mut cpu = program(&[0x6A, 0x6A]);
         cpu.acc = 0b0101_0101;
         cpu.tick();
@@ -1267,6 +1270,11 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.acc, 0x44);
         assert!(cpu.sr.is_empty());
+    }
+
+    #[test]
+    fn test_0xe9_sbc_imm() {
+        
     }
 
     #[test]
