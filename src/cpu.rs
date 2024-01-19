@@ -141,6 +141,10 @@ impl CPU {
         }
     }
 
+    fn branch(&mut self, offset: i8) {
+        self.pc = self.pc.wrapping_add_signed(offset as i16);
+    }
+
     fn fetch(&mut self) -> u8 {
         let opcode = self.rom.read_u8(self.pc);
         self.pc += 1;
@@ -157,6 +161,7 @@ impl CPU {
             0x06 => (ASL, ZeroPage(self.fetch())),
             0x09 => (ORA, Immediate(self.fetch())),
             0x0A => (ASL, Accumulator),
+            0x10 => (BPL, Relative(self.fetch() as i8)),
             0x15 => (ORA, ZeroPageX(self.fetch())),
             0x16 => (ASL, ZeroPageX(self.fetch())),
             0x18 => (CLC, Implicit),
@@ -164,6 +169,7 @@ impl CPU {
             0x26 => (ROL, ZeroPage(self.fetch())),
             0x29 => (AND, Immediate(self.fetch())),
             0x2A => (ROL, Accumulator),
+            0x30 => (BMI, Relative(self.fetch() as i8)),
             0x35 => (AND, ZeroPageX(self.fetch())),
             0x36 => (ROL, ZeroPageX(self.fetch())),
             0x38 => (SEC, Implicit),
@@ -203,6 +209,7 @@ impl CPU {
             0xC8 => (INY, Implicit),
             0xC9 => (CMP, Immediate(self.fetch())),
             0xCA => (DEX, Implicit),
+            0xD0 => (BNE, Relative(self.fetch() as i8)),
             0xD5 => (CMP, ZeroPageX(self.fetch())),
             0xD6 => (DEC, ZeroPageX(self.fetch())),
             0xD8 => (CLD, Implicit),
@@ -254,17 +261,32 @@ impl CPU {
             }
             (BCC, Relative(offset)) => {
                 if !self.p.contains(Status::C) {
-                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                    self.branch(offset);
                 }
             }
             (BCS, Relative(offset)) => {
                 if self.p.contains(Status::C) {
-                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                    self.branch(offset);
                 }
             }
             (BEQ, Relative(offset)) => {
                 if self.p.contains(Status::Z) {
-                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                    self.branch(offset);
+                }
+            }
+            (BMI, Relative(offset)) => {
+                if self.p.contains(Status::N) {
+                    self.branch(offset);
+                }
+            }
+            (BNE, Relative(offset)) => {
+                if !self.p.contains(Status::Z) {
+                    self.branch(offset);
+                }
+            }
+            (BPL, Relative(offset)) => {
+                if !self.p.contains(Status::N) {
+                    self.branch(offset);
                 }
             }
             (CLC, Implicit) => {
@@ -1285,6 +1307,126 @@ mod tests {
         ]);
         cpu.tick();
         cpu.p.set(Status::Z, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
+    #[test]
+    fn test_0x30_bmi_no_skip() {
+        let mut cpu = program(&[
+            0x30, 0x02,
+            0xA9, 0xFF,
+            0x00, // unreachable
+        ]);
+        cpu.p.set(Status::N, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0x30_bmi_offset() {
+        let mut cpu = program(&[
+            0x30, 0x02,
+            0x00, 0x00, // unreachable
+            0xC8,
+        ]);
+        cpu.p.set(Status::N, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0x30_bmi_negative_offset() {
+        let mut cpu = program(&[
+            0xC8,
+            0x30, 0xFD, // jump to start (-3)
+            0x00,       // unreachable
+        ]);
+        cpu.tick();
+        cpu.p.set(Status::N, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
+    #[test]
+    fn test_0xd0_bne_no_skip() {
+        let mut cpu = program(&[
+            0xD0, 0x02,
+            0xA9, 0xFF,
+            0x00, // unreachable
+        ]);
+        cpu.p.set(Status::Z, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0xd0_bne_offset() {
+        let mut cpu = program(&[
+            0xD0, 0x02,
+            0x00, 0x00, // unreachable
+            0xC8,
+        ]);
+        cpu.p.set(Status::Z, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0xd0_bne_negative_offset() {
+        let mut cpu = program(&[
+            0xC8,
+            0xD0, 0xFD, // jump to start (-3)
+            0x00        // unreachable
+        ]);
+        cpu.tick();
+        cpu.p.set(Status::Z, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
+
+    #[test]
+    fn test_0x10_bpl_no_skip() {
+        let mut cpu = program(&[
+            0x10, 0x02,
+            0xA9, 0xFF,
+            0x00, // unreachable
+        ]);
+        cpu.p.set(Status::N, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0x10_bpl_offset() {
+        let mut cpu = program(&[
+            0x10, 0x02,
+            0x00, 0x00, // unreachable
+            0xC8,
+        ]);
+        cpu.p.set(Status::N, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0x10_bpl_negative_offset() {
+        let mut cpu = program(&[
+            0xC8,
+            0xD0, 0xFD,
+            0x00
+        ]);
+        cpu.tick();
+        cpu.p.set(Status::N, false);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 2);
