@@ -161,6 +161,7 @@ impl CPU {
             0x06 => (ASL, ZeroPage(self.fetch())),
             0x09 => (ORA, Immediate(self.fetch())),
             0x0A => (ASL, Accumulator),
+            // conversion from u8 to i8 uses the same schemantics as the CPU
             0x10 => (BPL, Relative(self.fetch() as i8)),
             0x15 => (ORA, ZeroPageX(self.fetch())),
             0x16 => (ASL, ZeroPageX(self.fetch())),
@@ -189,7 +190,6 @@ impl CPU {
             0x85 => (STA, ZeroPage(self.fetch())),
             0x88 => (DEY, Implicit),
             0x8A => (TXA, Implicit),
-            // conversion from u8 to i8 uses the same schemantics as the CPU
             0x90 => (BCC, Relative(self.fetch() as i8)),
             0x95 => (STA, ZeroPageX(self.fetch())),
             0x98 => (TYA, Implicit),
@@ -238,9 +238,9 @@ impl CPU {
             (ASL, mode) => {
                 let data = self.read_operand(&mode);
                 self.p.set(Status::C, (data >> 7) & 1 != 0);
-                let x = data.wrapping_shl(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.wrapping_shl(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (AND, mode) => {
                 let data = self.read_operand(&mode);
@@ -249,8 +249,8 @@ impl CPU {
             }
             (ADC, mode) => {
                 let data = self.read_operand(&mode);
-                let (x, o) = self.a.overflowing_add(data);
-                self.a = x;
+                let (result, o) = self.a.overflowing_add(data);
+                self.a = result;
                 self.p.set_zn_flags(self.a);
                 self.p.set(Status::C, o);
                 // TODO: overflow flag
@@ -324,9 +324,9 @@ impl CPU {
             }
             (DEC, mode) => {
                 let data = self.read_operand(&mode);
-                let x = data.wrapping_sub(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.wrapping_sub(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (DEX, Implicit) => {
                 self.x = self.x.wrapping_sub(1);
@@ -351,9 +351,9 @@ impl CPU {
             (LSR, mode) => {
                 let data = self.read_operand(&mode);
                 self.p.set(Status::C, data & 1 != 0);
-                let x = data.wrapping_shr(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.wrapping_shr(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (ORA, mode) => {
                 let data = self.read_operand(&mode);
@@ -363,16 +363,16 @@ impl CPU {
             (ROL, mode) => {
                 let data = self.read_operand(&mode);
                 self.p.set(Status::C, (data >> 7) & 1 != 0);
-                let x = data.rotate_left(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.rotate_left(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (ROR, mode) => {
                 let data = self.read_operand(&mode);
                 self.p.set(Status::C, data & 1 != 0);
-                let x = data.rotate_right(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.rotate_right(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (SEC, Implicit) => {
                 self.p.set(Status::C, true);
@@ -386,16 +386,16 @@ impl CPU {
             (STA, mode) => self.write_operand(mode, self.a),
             (SBC, mode) => {
                 let data = self.read_operand(&mode);
-                let (x, o) = self.a.overflowing_sub(data);
-                self.a = x;
+                let (result, o) = self.a.overflowing_sub(data);
+                self.a = result;
                 self.p.set(Status::C, o);
                 self.p.set_zn_flags(self.a);
             }
             (INC, mode) => {
                 let data = self.read_operand(&mode);
-                let x = data.wrapping_add(1);
-                self.p.set_zn_flags(x);
-                self.write_operand(mode, x);
+                let result = data.wrapping_add(1);
+                self.p.set_zn_flags(result);
+                self.write_operand(mode, result);
             }
             (NOP, Implicit) => {}
             (INX, Implicit) => {
@@ -441,6 +441,13 @@ mod tests {
 
     fn program(bytes: &[u8]) -> CPU {
         CPU::new(Memory::from(bytes))
+    }
+
+    fn zpg(opcode: u8) -> CPU {
+        let mut cpu = program(&[opcode, 0x20]);
+        cpu.wram.write_u8(0x20, 0x40);
+        cpu.tick();
+        cpu
     }
 
     #[test]
