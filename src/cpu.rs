@@ -21,7 +21,7 @@ pub enum AddressingMode {
     ZeroPage(u8),
     ZeroPageX(u8),
     ZeroPageY(u8),
-    Relative(u8), // FIXME: can be negative
+    Relative(i8),
     Absolute,
     AbsoluteX,
     AbsoluteY,
@@ -181,7 +181,8 @@ impl CPU {
             0x85 => (STA, ZeroPage(self.fetch())),
             0x88 => (DEY, Implicit),
             0x8A => (TXA, Implicit),
-            0x90 => (BCC, Relative(self.fetch())),
+            // conversion from u8 to i8 uses the same schemantics as the CPU
+            0x90 => (BCC, Relative(self.fetch() as i8)),
             0x95 => (STA, ZeroPageX(self.fetch())),
             0x98 => (TYA, Implicit),
             0xA0 => (LDY, Immediate(self.fetch())),
@@ -227,7 +228,7 @@ impl CPU {
                 // TODO
                 // loop forever until we come up with a better
                 // way of handling this
-                todo!("interrupts");
+                todo!("CPU halt");
             }
             (ASL, mode) => {
                 let data = self.read_operand(&mode);
@@ -343,8 +344,8 @@ impl CPU {
                 self.p.set_zn_flags(self.a);
             }
             (BCC, Relative(offset)) => {
-                if self.p.contains(Status::C) {
-                    self.pc = self.pc.wrapping_add(offset as u16);
+                if !self.p.contains(Status::C) {
+                    self.pc = self.pc.wrapping_add_signed(offset as i16);
                 }
             }
             (INC, mode) => {
@@ -1159,8 +1160,23 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_with_carry() {
-        let mut cpu = program(&[0x90, 0x00, 0xC8]);
+        let mut cpu = program(&[
+            0x90, 0x02,
+            0xA9, 0xFF,
+            0xC8, // shouldn't be reached in test
+        ]);
         cpu.p.set(Status::C, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+        // shouldn't have run INY
+        assert_eq!(cpu.y, 0);
+    }
+
+    #[test]
+    fn test_0x90_bcc_no_carry() {
+        let mut cpu = program(&[0x90, 0x00, 0xC8]);
+        cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 1);
@@ -1170,10 +1186,10 @@ mod tests {
     fn test_0x90_bcc_offset() {
         let mut cpu = program(&[
             0x90, 0x02,
-            0xFF, 0xFF, // should never be reached
+            0x00, 0x00, // should never be reached
             0xC8,
         ]);
-        cpu.p.set(Status::C, true);
+        cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 1);
@@ -1181,22 +1197,16 @@ mod tests {
 
     #[test]
     fn test_0x90_bcc_negative_offset() {
-        // TODO
-    }
-
-    #[test]
-    fn test_0x90_bcc_no_carry() {
         let mut cpu = program(&[
-            0x90, 0x02,
-            0xA9, 0xFF,
-            0xC8, // shouldn't be reached in test
+            0xC8,
+            0x90, 0xFD, // jump 3 back
+            0x00 // should never be reached
         ]);
+        cpu.tick();
         cpu.p.set(Status::C, false);
         cpu.tick();
         cpu.tick();
-        assert_eq!(cpu.a, 0xFF);
-        // shouldn't have run INY
-        assert_eq!(cpu.y, 0);
+        assert_eq!(cpu.y, 2);
     }
 
     #[test]
