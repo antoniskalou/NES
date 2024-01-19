@@ -213,6 +213,7 @@ impl CPU {
             0xE8 => (INX, Implicit),
             0xE9 => (SBC, Immediate(self.fetch())),
             0xEA => (NOP, Implicit),
+            0xF0 => (BEQ, Relative(self.fetch() as i8)),
             0xF5 => (SBC, ZeroPageX(self.fetch())),
             0xF6 => (INC, ZeroPageX(self.fetch())),
             0xF8 => (SED, Implicit),
@@ -258,6 +259,11 @@ impl CPU {
             }
             (BCS, Relative(offset)) => {
                 if self.p.contains(Status::C) {
+                    self.pc = self.pc.wrapping_add_signed(offset as i16);
+                }
+            }
+            (BEQ, Relative(offset)) => {
+                if self.p.contains(Status::Z) {
                     self.pc = self.pc.wrapping_add_signed(offset as i16);
                 }
             }
@@ -1244,6 +1250,45 @@ mod tests {
         assert_eq!(cpu.y, 2);
     }
 
+    #[test]
+    fn test_0xf0_beq_no_skip() {
+        let mut cpu = program(&[
+            0xF0, 0x02,
+            0xA9, 0xFF,
+            0x00, // unreachable
+        ]);
+        cpu.p.set(Status::Z, false);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.a, 0xFF);
+    }
+
+    #[test]
+    fn test_0xf0_beq_offset() {
+        let mut cpu = program(&[
+            0xF0, 0x02,
+            0x00, 0x00, // unreachable
+            0xC8,
+        ]);
+        cpu.p.set(Status::Z, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
+    }
+
+    #[test]
+    fn test_0xf0_beq_negative_offset() {
+        let mut cpu = program(&[
+            0xC8,
+            0xF0, 0xFD, // jump to start (-3)
+            0x00,       // unreachable
+        ]);
+        cpu.tick();
+        cpu.p.set(Status::Z, true);
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 2);
+    }
 
     #[test]
     fn test_0x69_adc_imm() {
