@@ -141,6 +141,17 @@ impl CPU {
         }
     }
 
+    fn push_stack(&mut self, val: u8) {
+        // FIXME: stack isn't stored in wram
+        self.wram.write_u8(self.sp as u16, val);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
+    fn pop_stack(&mut self) -> u8 {
+        self.sp = self.sp.wrapping_add(1);
+        self.wram.read_u8(self.sp as u16)
+    }
+
     fn branch(&mut self, offset: i8) {
         self.pc = self.pc.wrapping_add_signed(offset as i16);
     }
