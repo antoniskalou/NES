@@ -516,6 +516,31 @@ mod tests {
         assert!(cpu.p.contains(Status::N), "{} ${:02X},X < 0", name, val);
     }
 
+    fn acc_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
+        let mut cpu = program(&[opcode]);
+        cpu.a = val;
+        cpu.tick();
+        assert_eq!(cpu.a, expected, "{} A & C == {}", name, expected);
+        assert!(cpu.p.contains(Status::C), "{} A & C", name);
+    }
+
+    fn zpg_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
+        let mut cpu = program(&[opcode, 0x20]);
+        cpu.wram.write_u8(0x20, val);
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), expected);
+        assert!(cpu.p.contains(Status::C), "{} ${} & C", name, val);
+    }
+
+    fn zpgx_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
+        let mut cpu = program(&[opcode, 0x10]);
+        cpu.wram.write_u8(0x20, val);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert_eq!(cpu.wram.read_u8(0x20), expected);
+        assert!(cpu.p.contains(Status::C), "{} ${},X & C", name, val);
+    }
+
     #[test]
     fn test_acc_zero_flags() {
         acc_zero_flag("ASL", 0x0A, 0b1000_0000);
@@ -578,7 +603,6 @@ mod tests {
         imm_negative_flag("LDA", 0xA9, 0x80);
     }
 
-
     #[test]
     fn test_zpg_negative_flags() {
         // multiplies by 2
@@ -604,6 +628,24 @@ mod tests {
     }
 
     #[test]
+    fn test_acc_carry_flags() {
+        acc_carry_flag("ASL", 0x0A, 0b1000_0000, 0b0);
+        acc_carry_flag("LSR", 0x4A, 0b0000_0011, 0b1);
+    }
+
+    #[test]
+    fn test_zpg_carry_flags() {
+        zpg_carry_flag("ASL", 0x06, 0b1000_0000, 0b0);
+        zpg_carry_flag("LSR", 0x46, 0b0000_0011, 0b1);
+    }
+
+    #[test]
+    fn test_zpgx_carry_flags() {
+        zpgx_carry_flag("ASL", 0x16, 0b1000_0000, 0b0);
+        zpgx_carry_flag("LSR", 0x56, 0b0000_0011, 0b1);
+    }
+
+    #[test]
     fn test_0x00_brk() {
         // TODO
     }
@@ -618,28 +660,12 @@ mod tests {
     }
 
     #[test]
-    fn test_0x06_asl_zpg_carry_flag() {
-        let mut cpu = program(&[0x06, 0x20]);
-        cpu.wram.write_u8(0x20, 0b1000_0000);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
-    }
-
-    #[test]
     fn test_0x0a_asl_acc() {
         let mut cpu = program(&[0x0A]);
         cpu.a = 0b0000_0001;
         cpu.tick();
         assert_eq!(cpu.a, 0b0000_0010);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x0a_asl_acc_carry_flag() {
-        let mut cpu = program(&[0x0A]);
-        cpu.a = 0b1000_0000;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -650,15 +676,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x16_asl_zpgx_carry_flag() {
-        let mut cpu = program(&[0x16, 0x20]);
-        cpu.x = 0;
-        cpu.wram.write_u8(0x20, 0b1000_0000);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
@@ -683,14 +700,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x4a_lsr_acc_carry_flag() {
-        let mut cpu = program(&[0x4A]);
-        cpu.a = 0b0000_0011;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
     fn test_0x46_lsr_zpg() {
         let mut cpu = program(&[0x46, 0x20]);
         cpu.wram.write_u8(0x20, 0b0000_0010);
@@ -706,14 +715,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
         assert!(!cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_0x46_lsr_zpg_carry_flag() {
-        let mut cpu = program(&[0x46, 0x20]);
-        cpu.wram.write_u8(0x20, 0b0000_0011);
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
@@ -734,15 +735,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
         assert!(!cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_0x56_lsr_zpgx_carry_flag() {
-        let mut cpu = program(&[0x56, 0x20]);
-        cpu.wram.write_u8(0x20, 0b0000_0011);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
     }
 
     #[test]
