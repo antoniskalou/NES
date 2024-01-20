@@ -717,7 +717,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x4a_lsr_acc_negative_flag() {
+    fn test_lsr_acc_negative_flag() {
         let mut cpu = program(&[0x4A]);
         cpu.a = 0xFF;
         cpu.tick();
@@ -729,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x46_lsr_zpg_negative_flag() {
+    fn test_lsr_zpg_negative_flag() {
         let mut cpu = program(&[0x46, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.tick();
@@ -738,7 +738,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x56_lsr_zpgx_negative_flag() {
+    fn test_lsr_zpgx_negative_flag() {
         let mut cpu = program(&[0x56, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0;
@@ -748,7 +748,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x18_clc() {
+    fn test_clc() {
         let mut cpu = program(&[0x18]);
         cpu.p.set(Status::C, true);
         cpu.tick();
@@ -756,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd8_cld() {
+    fn test_cld() {
         let mut cpu = program(&[0xD8]);
         cpu.p.set(Status::D, true);
         cpu.tick();
@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x58_cli() {
+    fn test_cli() {
         let mut cpu = program(&[0x58]);
         cpu.p.set(Status::I, true);
         cpu.tick();
@@ -772,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb8_clv() {
+    fn test_clv() {
         let mut cpu = program(&[0xB8]);
         cpu.p.set(Status::V, true);
         cpu.tick();
@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x25_and_zpg() {
+    fn test_and_zpg() {
         let mut cpu = program(&[0x25, 0x20]);
         cpu.wram.write_u8(0x20, 0b1010);
         cpu.a = 0b1111;
@@ -790,7 +790,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x25_and_zpg_negative_flag() {
+    fn test_and_zpg_negative_flag() {
         let mut cpu = program(&[0x25, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.a = 0x80;
@@ -799,7 +799,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x29_and_imm() {
+    fn test_and_imm() {
         let mut cpu = program(&[0x29, 0b1010]);
         cpu.a = 0b1111;
         cpu.tick();
@@ -808,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x29_and_imm_negative_flag() {
+    fn test_and_imm_negative_flag() {
         let mut cpu = program(&[0x29, 0xFF]);
         cpu.a = 0x80;
         cpu.tick();
@@ -816,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x35_and_zpgx() {
+    fn test_and_zpgx() {
         let mut cpu = program(&[0x35, 0x10]);
         cpu.wram.write_u8(0x20, 0b1010);
         cpu.x = 0x10;
@@ -827,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x35_and_zpgx_negative_flag() {
+    fn test_and_zpgx_negative_flag() {
         let mut cpu = program(&[0x35, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0;
@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x09_ora_imm() {
+    fn test_ora_imm() {
         let mut cpu = program(&[0x09, 0b0101_0101]);
         cpu.a = 0b0000_1111;
         cpu.tick();
@@ -846,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x09_ora_imm_negative_flag() {
+    fn test_ora_imm_negative_flag() {
         let mut cpu = program(&[0x09, 0x00]);
         cpu.a = 0x80;
         cpu.tick();
@@ -855,7 +855,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x05_ora_zpg() {
+    fn test_ora_zpg() {
         let mut cpu = program(&[0x05, 0x20]);
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.a = 0b0000_1111;
@@ -865,7 +865,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x05_ora_zpg_negative_flag() {
+    fn test_ora_zpg_negative_flag() {
         let mut cpu = program(&[0x05, 0x20]);
         cpu.wram.write_u8(0x20, 0x00);
         cpu.a = 0x80;
@@ -875,7 +875,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x15_ora_zpgx() {
+    fn test_ora_zpgx() {
         let mut cpu = program(&[0x15, 0x10]);
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.x = 0x10;
@@ -886,7 +886,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x15_ora_zpgx_negative_flag() {
+    fn test_ora_zpgx_negative_flag() {
         let mut cpu = program(&[0x15, 0x20]);
         cpu.wram.write_u8(0x20, 0x00);
         cpu.x = 0x00;
@@ -897,7 +897,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x2a_rol_acc_carry_flag() {
+    fn test_rol_acc_carry_flag() {
         let mut cpu = program(&[0x2A, 0x2A]);
         cpu.a = 0b1010_1010;
         cpu.tick();
@@ -910,7 +910,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x26_rol_zpg_carry_flag() {
+    fn test_rol_zpg_carry_flag() {
         let mut cpu = program(&[0x26, 0x20, 0x26, 0x20]);
         cpu.wram.write_u8(0x20, 0b1010_1010);
         cpu.tick();
@@ -922,7 +922,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x36_rol_zpgx_carry_flag() {
+    fn test_rol_zpgx_carry_flag() {
         let mut cpu = program(&[0x36, 0x10, 0x36, 0x10]);
         cpu.wram.write_u8(0x20, 0b1010_1010);
         cpu.x = 0x10;
@@ -935,7 +935,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x6a_ror_acc_carry_flag() {
+    fn test_ror_acc_carry_flag() {
         let mut cpu = program(&[0x6A, 0x6A]);
         cpu.a = 0b0101_0101;
         cpu.tick();
@@ -948,7 +948,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x66_ror_zpg_carry_flag() {
+    fn test_ror_zpg_carry_flag() {
         let mut cpu = program(&[0x66, 0x20, 0x66, 0x20]);
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.tick();
@@ -960,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x76_ror_zpgx_carry_flag() {
+    fn test_ror_zpgx_carry_flag() {
         let mut cpu = program(&[0x76, 0x10, 0x76, 0x10]);
         cpu.wram.write_u8(0x20, 0b0101_0101);
         cpu.x = 0x10;
@@ -973,7 +973,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa9_lda_imm() {
+    fn test_lda_imm() {
         let mut cpu = program(&[0xA9, 0x40]);
         cpu.tick();
         assert_eq!(cpu.a, 0x40);
@@ -981,7 +981,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x85_sta_zpg() {
+    fn test_sta_zpg() {
         let mut cpu = program(&[0x85, 0x20]);
         cpu.a = 0xFF;
         cpu.tick();
@@ -990,7 +990,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x95_sta_zpgx() {
+    fn test_sta_zpgx() {
         let mut cpu = program(&[0x95, 0x10]);
         cpu.x = 0x10;
         cpu.a = 0xFF;
@@ -1037,7 +1037,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x90_bcc_no_skip() {
+    fn test_bcc_no_skip() {
         let mut cpu = program(&branch_no_skip(0x90));
         cpu.p.set(Status::C, true);
         cpu.tick();
@@ -1046,7 +1046,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x90_bcc_offset() {
+    fn test_bcc_offset() {
         let mut cpu = program(&branch_offset(0x90));
         cpu.p.set(Status::C, false);
         cpu.tick();
@@ -1055,7 +1055,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x90_bcc_negative_offset() {
+    fn test_bcc_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0x90));
         cpu.tick();
         cpu.p.set(Status::C, false);
@@ -1065,7 +1065,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb0_bcs_no_skip() {
+    fn test_bcs_no_skip() {
         let mut cpu = program(&branch_no_skip(0xB0));
         cpu.p.set(Status::C, false);
         cpu.tick();
@@ -1074,7 +1074,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb0_bcs_offset() {
+    fn test_bcs_offset() {
         let mut cpu = program(&branch_offset(0xB0));
         cpu.p.set(Status::C, true);
         cpu.tick();
@@ -1083,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb0_bcs_negative_offset() {
+    fn test_bcs_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0xB0));
         cpu.tick();
         cpu.p.set(Status::C, true);
@@ -1093,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xf0_beq_no_skip() {
+    fn test_beq_no_skip() {
         let mut cpu = program(&branch_no_skip(0xF0));
         cpu.p.set(Status::Z, false);
         cpu.tick();
@@ -1102,7 +1102,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xf0_beq_offset() {
+    fn test_beq_offset() {
         let mut cpu = program(&branch_offset(0xF0));
         cpu.p.set(Status::Z, true);
         cpu.tick();
@@ -1111,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xf0_beq_negative_offset() {
+    fn test_beq_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0xF0));
         cpu.tick();
         cpu.p.set(Status::Z, true);
@@ -1121,7 +1121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x30_bmi_no_skip() {
+    fn test_bmi_no_skip() {
         let mut cpu = program(&branch_no_skip(0x30));
         cpu.p.set(Status::N, false);
         cpu.tick();
@@ -1130,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x30_bmi_offset() {
+    fn test_bmi_offset() {
         let mut cpu = program(&branch_offset(0x30));
         cpu.p.set(Status::N, true);
         cpu.tick();
@@ -1139,7 +1139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x30_bmi_negative_offset() {
+    fn test_bmi_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0x30));
         cpu.tick();
         cpu.p.set(Status::N, true);
@@ -1149,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd0_bne_no_skip() {
+    fn test_bne_no_skip() {
         let mut cpu = program(&branch_no_skip(0xD0));
         cpu.p.set(Status::Z, true);
         cpu.tick();
@@ -1158,7 +1158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd0_bne_offset() {
+    fn test_bne_offset() {
         let mut cpu = program(&branch_offset(0xD0));
         cpu.p.set(Status::Z, false);
         cpu.tick();
@@ -1167,7 +1167,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd0_bne_negative_offset() {
+    fn test_bne_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0xD0));
         cpu.tick();
         cpu.p.set(Status::Z, false);
@@ -1177,7 +1177,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x10_bpl_no_skip() {
+    fn test_bpl_no_skip() {
         let mut cpu = program(&branch_no_skip(0x10));
         cpu.p.set(Status::N, true);
         cpu.tick();
@@ -1186,7 +1186,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x10_bpl_offset() {
+    fn test_bpl_offset() {
         let mut cpu = program(&branch_offset(0x10));
         cpu.p.set(Status::N, false);
         cpu.tick();
@@ -1195,7 +1195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x10_bpl_negative_offset() {
+    fn test_bpl_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0x10));
         cpu.tick();
         cpu.p.set(Status::N, false);
@@ -1205,7 +1205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x50_bvc_no_skip() {
+    fn test_bvc_no_skip() {
         let mut cpu = program(&branch_no_skip(0x50));
         cpu.p.set(Status::V, true);
         cpu.tick();
@@ -1214,7 +1214,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x50_bvc_offset() {
+    fn test_bvc_offset() {
         let mut cpu = program(&branch_offset(0x50));
         cpu.p.set(Status::V, false);
         cpu.tick();
@@ -1223,7 +1223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x50_bvc_negative_offset() {
+    fn test_bvc_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0x50));
         cpu.tick();
         cpu.p.set(Status::V, false);
@@ -1233,7 +1233,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x70_bvs_no_skip() {
+    fn test_bvs_no_skip() {
         let mut cpu = program(&branch_no_skip(0x70));
         cpu.p.set(Status::V, false);
         cpu.tick();
@@ -1242,7 +1242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x70_bvs_offset() {
+    fn test_bvs_offset() {
         let mut cpu = program(&branch_offset(0x70));
         cpu.p.set(Status::V, true);
         cpu.tick();
@@ -1251,7 +1251,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x70_bvs_negative_offset() {
+    fn test_bvs_negative_offset() {
         let mut cpu = program(&branch_negative_offset(0x70));
         cpu.tick();
         cpu.p.set(Status::V, true);
@@ -1261,7 +1261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x69_adc_imm() {
+    fn test_adc_imm() {
         let mut cpu = program(&[0x69, 0x40]);
         cpu.a = 0x04;
         cpu.tick();
@@ -1270,7 +1270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x69_adc_imm_negative_flag() {
+    fn test_adc_imm_negative_flag() {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.a = 0x7F;
         cpu.tick();
@@ -1278,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x69_adc_imm_carry_flag() {
+    fn test_adc_imm_carry_flag() {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.a = 0xFF;
         cpu.tick();
@@ -1286,7 +1286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x65_adc_zpg() {
+    fn test_adc_zpg() {
         let mut cpu = program(&[0x65, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.a = 0x04;
@@ -1296,7 +1296,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x65_adc_zpg_negative_flag() {
+    fn test_adc_zpg_negative_flag() {
         let mut cpu = program(&[0x65, 0x20]);
         cpu.wram.write_u8(0x20, 1);
         cpu.a = 0x7F;
@@ -1305,7 +1305,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x65_adc_zpg_carry_flag() {
+    fn test_adc_zpg_carry_flag() {
         let mut cpu = program(&[0x65, 0x20]);
         cpu.wram.write_u8(0x20, 1);
         cpu.a = 0xFF;
@@ -1314,7 +1314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x75_adc_zpgx() {
+    fn test_adc_zpgx() {
         let mut cpu = program(&[0x75, 0x10]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x10;
@@ -1325,7 +1325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe9_sbc_imm() {
+    fn test_sbc_imm() {
         let mut cpu = program(&[0xE9, 0x20]);
         cpu.a = 0x40;
         cpu.tick();
@@ -1334,7 +1334,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa2_ldx_imm() {
+    fn test_ldx_imm() {
         let mut cpu = program(&[0xA2, 0x40]);
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
@@ -1343,7 +1343,7 @@ mod tests {
 
     // FIXME: cant remove yet since it tests x
     #[test]
-    fn test_0xa6_ldx_zpg() {
+    fn test_ldx_zpg() {
         let mut cpu = program(&[0xA6, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
@@ -1352,7 +1352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb6_ldx_zpgy() {
+    fn test_ldx_zpgy() {
         let mut cpu = program(&[0xB6, 0x10]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.y = 0x10;
@@ -1362,7 +1362,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb6_ldx_zpgy_zero_flag() {
+    fn test_ldx_zpgy_zero_flag() {
         let mut cpu = program(&[0xB6, 0x20]);
         cpu.wram.write_u8(0x20, 0);
         cpu.y = 0;
@@ -1371,7 +1371,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb6_ldx_zpgy_negative_flag() {
+    fn test_ldx_zpgy_negative_flag() {
         let mut cpu = program(&[0xB6, 0x20]);
         cpu.wram.write_u8(0x20, 0x80);
         cpu.y = 0;
@@ -1380,7 +1380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa0_ldy_imm() {
+    fn test_ldy_imm() {
         let mut cpu = program(&[0xA0, 0x40]);
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
@@ -1388,7 +1388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa4_ldy_zpg() {
+    fn test_ldy_zpg() {
         let mut cpu = program(&[0xA4, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.tick();
@@ -1397,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xb4_ldy_zpgx() {
+    fn test_ldy_zpgx() {
         let mut cpu = program(&[0xB4, 0x10]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x10;
@@ -1407,7 +1407,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe8_inx() {
+    fn test_inx() {
         let mut cpu = program(&[0xE8]);
         cpu.x = 0x40;
         cpu.tick();
@@ -1416,7 +1416,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe8_inx_zero_flag() {
+    fn test_inx_zero_flag() {
         let mut cpu = program(&[0xE8]);
         cpu.x = 0xFF;
         cpu.tick();
@@ -1425,7 +1425,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe8_inx_negative_flag() {
+    fn test_inx_negative_flag() {
         let mut cpu = program(&[0xE8]);
         cpu.x = 0x7F;
         cpu.tick();
@@ -1433,7 +1433,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc8_iny() {
+    fn test_iny() {
         let mut cpu = program(&[0xC8]);
         cpu.y = 0x40;
         cpu.tick();
@@ -1442,7 +1442,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc8_iny_zero_flag() {
+    fn test_iny_zero_flag() {
         let mut cpu = program(&[0xC8]);
         cpu.y = 0xFF;
         cpu.tick();
@@ -1451,7 +1451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc8_iny_negative_flag() {
+    fn test_iny_negative_flag() {
         let mut cpu = program(&[0xC8]);
         cpu.y = 0x7F;
         cpu.tick();
@@ -1459,7 +1459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xca_dex() {
+    fn test_dex() {
         let mut cpu = program(&[0xCA]);
         cpu.x = 2;
         cpu.tick();
@@ -1468,7 +1468,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xca_dex_underflow() {
+    fn test_dex_underflow() {
         let mut cpu = program(&[0xCA]);
         cpu.x = 0;
         cpu.tick();
@@ -1476,7 +1476,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xca_dex_zero_flag() {
+    fn test_dex_zero_flag() {
         let mut cpu = program(&[0xCA]);
         cpu.x = 1;
         cpu.tick();
@@ -1485,7 +1485,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xca_dex_negative_flag() {
+    fn test_dex_negative_flag() {
         let mut cpu = program(&[0xCA]);
         cpu.x = 0xFF;
         cpu.tick();
@@ -1494,7 +1494,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x88_dey() {
+    fn test_dey() {
         let mut cpu = program(&[0x88]);
         cpu.y = 2;
         cpu.tick();
@@ -1503,7 +1503,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x88_dey_underflow() {
+    fn test_dey_underflow() {
         let mut cpu = program(&[0x88]);
         cpu.y = 0;
         cpu.tick();
@@ -1511,7 +1511,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x88_dey_zero_flag() {
+    fn test_dey_zero_flag() {
         let mut cpu = program(&[0x88]);
         cpu.y = 1;
         cpu.tick();
@@ -1520,7 +1520,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x88_dey_negative_flag() {
+    fn test_dey_negative_flag() {
         let mut cpu = program(&[0x88]);
         cpu.y = 0xFF;
         cpu.tick();
@@ -1529,14 +1529,14 @@ mod tests {
     }
 
     #[test]
-    fn test_0xea_nop() {
+    fn test_nop() {
         let mut cpu = program(&[0xEA]);
         cpu.tick();
         // as long as we don't panic, we're good
     }
 
     #[test]
-    fn test_0x38_sec() {
+    fn test_sec() {
         let mut cpu = program(&[0x38]);
         cpu.p.set(Status::C, false);
         cpu.tick();
@@ -1544,7 +1544,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xf8_sed() {
+    fn test_sed() {
         let mut cpu = program(&[0xF8]);
         cpu.p.set(Status::D, false);
         cpu.tick();
@@ -1552,7 +1552,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x78_sei() {
+    fn test_sei() {
         let mut cpu = program(&[0x78]);
         cpu.p.set(Status::I, false);
         cpu.tick();
@@ -1560,7 +1560,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xaa_tax() {
+    fn test_tax() {
         let mut cpu = program(&[0xAA]);
         cpu.x = 0x00;
         cpu.a = 0x40;
@@ -1570,7 +1570,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xaa_tax_zero_flag() {
+    fn test_tax_zero_flag() {
         let mut cpu = program(&[0xAA]);
         cpu.x = 0x40;
         cpu.a = 0x00;
@@ -1579,7 +1579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xaa_tax_negative_flag() {
+    fn test_tax_negative_flag() {
         let mut cpu = program(&[0xAA]);
         cpu.x = 0x00;
         cpu.a = 0x80;
@@ -1588,7 +1588,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa8_tay() {
+    fn test_tay() {
         let mut cpu = program(&[0xA8]);
         cpu.y = 0x00;
         cpu.a = 0x40;
@@ -1598,7 +1598,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa8_tay_zero_flag() {
+    fn test_tay_zero_flag() {
         let mut cpu = program(&[0xA8]);
         cpu.y = 0x40;
         cpu.a = 0x00;
@@ -1607,7 +1607,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa8_tay_negative_flag() {
+    fn test_tay_negative_flag() {
         let mut cpu = program(&[0xA8]);
         cpu.y = 0x00;
         cpu.a = 0x80;
@@ -1616,7 +1616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x8a_txa() {
+    fn test_txa() {
         let mut cpu = program(&[0x8A]);
         cpu.a = 0x00;
         cpu.x = 0x40;
@@ -1626,7 +1626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x8a_txa_zero_flag() {
+    fn test_txa_zero_flag() {
         let mut cpu = program(&[0x8A]);
         cpu.a = 0x40;
         cpu.x = 0x00;
@@ -1635,7 +1635,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x8a_txa_negative_flag() {
+    fn test_txa_negative_flag() {
         let mut cpu = program(&[0x8A]);
         cpu.a = 0x00;
         cpu.x = 0x80;
@@ -1644,7 +1644,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x98_txa() {
+    fn test_tya() {
         let mut cpu = program(&[0x98]);
         cpu.a = 0x00;
         cpu.y = 0x40;
@@ -1654,7 +1654,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x98_txa_zero_flag() {
+    fn test_tya_zero_flag() {
         let mut cpu = program(&[0x98]);
         cpu.a = 0x40;
         cpu.y = 0x00;
@@ -1663,7 +1663,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x98_txa_negative_flag() {
+    fn test_tya_negative_flag() {
         let mut cpu = program(&[0x98]);
         cpu.a = 0x00;
         cpu.y = 0x80;
@@ -1672,7 +1672,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc9_cmp_imm_eq() {
+    fn test_cmp_imm_eq() {
         let mut cpu = program(&[0xC9, 0x40]);
         cpu.a = 0x40;
         cpu.tick();
@@ -1680,7 +1680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc9_cmp_imm_gt() {
+    fn test_cmp_imm_gt() {
         let mut cpu = program(&[0xC9, 0x40]);
         cpu.a = 0x41;
         cpu.tick();
@@ -1688,7 +1688,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc9_cmp_imm_lt() {
+    fn test_cmp_imm_lt() {
         let mut cpu = program(&[0xC9, 0x41]);
         cpu.a = 0x40;
         cpu.tick();
@@ -1696,7 +1696,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc9_cmp_imm_negative_flag() {
+    fn test_cmp_imm_negative_flag() {
         let mut cpu = program(&[0xC9, 0xFF]);
         cpu.a = 0x80;
         cpu.tick();
@@ -1704,7 +1704,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc5_cmp_zpg_eq() {
+    fn test_cmp_zpg_eq() {
         let mut cpu = program(&[0xC5, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.a = 0x40;
@@ -1713,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc5_cmp_zpg_gt() {
+    fn test_cmp_zpg_gt() {
         let mut cpu = program(&[0xC5, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.a = 0x41;
@@ -1722,7 +1722,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc5_cmp_zpg_lt() {
+    fn test_cmp_zpg_lt() {
         let mut cpu = program(&[0xC5, 0x20]);
         cpu.wram.write_u8(0x20, 0x41);
         cpu.a = 0x40;
@@ -1731,7 +1731,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xc5_cmp_zpg_negative_flag() {
+    fn test_cmp_zpg_negative_flag() {
         let mut cpu = program(&[0xC5, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.a = 0x80;
@@ -1740,7 +1740,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd5_cmp_zpgx_eq() {
+    fn test_cmp_zpgx_eq() {
         let mut cpu = program(&[0xD5, 0x10]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x10;
@@ -1750,7 +1750,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd5_cmp_zpgx_gt() {
+    fn test_cmp_zpgx_gt() {
         let mut cpu = program(&[0xD5, 0x10]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x10;
@@ -1760,7 +1760,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd5_cmp_zpgx_lt() {
+    fn test_cmp_zpgx_lt() {
         let mut cpu = program(&[0xD5, 0x10]);
         cpu.wram.write_u8(0x20, 0x41);
         cpu.x = 0x10;
@@ -1770,7 +1770,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xd5_cmp_zpgx_negative_flag() {
+    fn test_cmp_zpgx_negative_flag() {
         let mut cpu = program(&[0xD5, 0x10]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0x10;
@@ -1780,7 +1780,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe0_cpx_imm_eq() {
+    fn test_cpx_imm_eq() {
         let mut cpu = program(&[0xE0, 0x40]);
         cpu.x = 0x40;
         cpu.tick();
@@ -1788,7 +1788,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe0_cpx_imm_gt() {
+    fn test_cpx_imm_gt() {
         let mut cpu = program(&[0xE0, 0x40]);
         cpu.x = 0x41;
         cpu.tick();
@@ -1796,7 +1796,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe0_cpx_imm_lt() {
+    fn test_cpx_imm_lt() {
         let mut cpu = program(&[0xE0, 0x41]);
         cpu.x = 0x40;
         cpu.tick();
@@ -1804,7 +1804,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe0_cpx_imm_negative_flag() {
+    fn test_cpx_imm_negative_flag() {
         let mut cpu = program(&[0xE0, 0xFF]);
         cpu.x = 0x80;
         cpu.tick();
@@ -1812,7 +1812,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe4_cpx_zpg_eq() {
+    fn test_cpx_zpg_eq() {
         let mut cpu = program(&[0xE4, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x40;
@@ -1821,7 +1821,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe4_cpx_zpg_gt() {
+    fn test_cpx_zpg_gt() {
         let mut cpu = program(&[0xE4, 0x20]);
         cpu.wram.write_u8(0x20, 0x40);
         cpu.x = 0x41;
@@ -1830,7 +1830,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe4_cpx_zpg_lt() {
+    fn test_cpx_zpg_lt() {
         let mut cpu = program(&[0xE4, 0x20]);
         cpu.wram.write_u8(0x20, 0x41);
         cpu.x = 0x40;
@@ -1839,7 +1839,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0xe4_cpx_zpg_negative_flag() {
+    fn test_cpx_zpg_negative_flag() {
         let mut cpu = program(&[0xE4, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
         cpu.x = 0x80;
