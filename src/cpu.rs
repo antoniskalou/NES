@@ -454,29 +454,90 @@ mod tests {
         CPU::new(Memory::from(bytes))
     }
 
-    fn test_zpg_zero_flag(name: &str, opcode: u8, val: u8) {
+    fn acc_zero_flag(name: &str, opcode: u8, val: u8) {
+        let mut cpu = program(&[opcode]);
+        cpu.a = val;
+        cpu.tick();
+        assert!(cpu.p.contains(Status::Z), "{} A != 0", name);
+    }
+
+    fn imm_zero_flag(name: &str, opcode: u8, val: u8) {
+        let mut cpu = program(&[opcode, val]);
+        cpu.a = 0x00;
+        cpu.tick();
+        assert!(cpu.p.contains(Status::Z), "{} #{:02X} != 0", name, val);
+    }
+
+    fn zpg_zero_flag(name: &str, opcode: u8, val: u8) {
         let mut cpu = program(&[opcode, 0x20]);
         cpu.wram.write_u8(0x20, val);
         cpu.a = 0x00;
         cpu.tick();
-        assert!(cpu.p.contains(Status::Z), "{} 0x{:02X} != 0", name, val);
+        assert!(cpu.p.contains(Status::Z), "{} ${:02X} != 0", name, val);
+    }
+
+    fn zpgx_zero_flag(name: &str, opcode: u8, val: u8) {
+        let mut cpu = program(&[opcode, 0x10]);
+        cpu.wram.write_u8(0x20, val);
+        cpu.x = 0x10;
+        cpu.tick();
+        assert!(cpu.p.contains(Status::Z), "{} ${:02X},X != 0", name, val);
+    }
+
+    fn zpg_negative_flag(name: &str, opcode: u8, val: u8) {
+        let mut cpu = program(&[opcode, 0x20]);
+        cpu.wram.write_u8(0x20, val);
+        cpu.a = 0x00;
+        cpu.tick();
+        assert!(cpu.p.contains(Status::N), "{} ${:02X} >= 0", name, val);
+    }
+
+    #[test]
+    fn test_acc_zero_flags() {
+        acc_zero_flag("ASL", 0x0A, 0b1000_0000);
+        acc_zero_flag("ROL", 0x2A, 0x00);
+        acc_zero_flag("LSR", 0x4A, 0b0000_0001);
+        acc_zero_flag("ROR", 0x6A, 0x00);
+    }
+
+    #[test]
+    fn test_imm_zero_flags() {
+        imm_zero_flag("ORA", 0x09, 0x00);
+        imm_zero_flag("AND", 0x29, 0x00);
+        imm_zero_flag("ADC", 0x69, 0x00);
+        imm_zero_flag("LDY", 0xA0, 0x00);
+        imm_zero_flag("LDX", 0xA2, 0x00);
+        imm_zero_flag("LDA", 0xA9, 0x00);
     }
 
     #[test]
     fn test_zpg_zero_flags() {
-        // TODO: include human readable opcode name
-        test_zpg_zero_flag("ORA", 0x05, 0x00);
-        test_zpg_zero_flag("ASL", 0x06, 0b1000_0000);
-        test_zpg_zero_flag("AND", 0x25, 0x00);
-        test_zpg_zero_flag("ROL", 0x26, 0x00);
-        test_zpg_zero_flag("LSR", 0x46, 0b0000_0001);
-        test_zpg_zero_flag("ADC", 0x65, 0x00);
-        test_zpg_zero_flag("ROR", 0x66, 0x00);
-        test_zpg_zero_flag("LDY", 0xA4, 0x00);
-        test_zpg_zero_flag("LDA", 0xA5, 0x00);
-        test_zpg_zero_flag("LDX", 0xA6, 0x00);
-        test_zpg_zero_flag("DEC", 0xC6, 0x01);
-        test_zpg_zero_flag("INC", 0xE6,0xFF);
+        zpg_zero_flag("ORA", 0x05, 0x00);
+        zpg_zero_flag("ASL", 0x06, 0b1000_0000);
+        zpg_zero_flag("AND", 0x25, 0x00);
+        zpg_zero_flag("ROL", 0x26, 0x00);
+        zpg_zero_flag("LSR", 0x46, 0b0000_0001);
+        zpg_zero_flag("ADC", 0x65, 0x00);
+        zpg_zero_flag("ROR", 0x66, 0x00);
+        zpg_zero_flag("LDY", 0xA4, 0x00);
+        zpg_zero_flag("LDA", 0xA5, 0x00);
+        zpg_zero_flag("LDX", 0xA6, 0x00);
+        zpg_zero_flag("DEC", 0xC6, 0x01);
+        zpg_zero_flag("INC", 0xE6,0xFF);
+    }
+
+    #[test]
+    fn test_zpgx_zero_flags() {
+        zpgx_zero_flag("ORA", 0x15, 0x00);
+        zpgx_zero_flag("ASL", 0x16, 0b1000_0000);
+        zpgx_zero_flag("LSR", 0x56, 0b0000_0001);
+        zpgx_zero_flag("AND", 0x35, 0x00);
+        zpgx_zero_flag("ROL", 0x36, 0x00);
+        zpgx_zero_flag("ROR", 0x76, 0x00);
+        zpgx_zero_flag("LDY", 0xB4, 0x00);
+        zpgx_zero_flag("LDA", 0xB5, 0x00);
+        zpgx_zero_flag("DEC", 0xD6, 0x01);
+        zpgx_zero_flag("INC", 0xF6, 0xFF);
     }
 
     #[test]
@@ -521,14 +582,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x0a_asl_acc_zero_flag() {
-        let mut cpu = program(&[0x0A]);
-        cpu.a = 0;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
     fn test_0x0a_asl_acc_negative_flag() {
         let mut cpu = program(&[0x0A]);
         cpu.a = 0x40;
@@ -553,15 +606,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0010);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x16_asl_zpgx_zero_flag() {
-        let mut cpu = program(&[0x16, 0x20]);
-        cpu.x = 0;
-        cpu.wram.write_u8(0x20, 0);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
     }
 
     #[test]
@@ -590,14 +634,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0b0000_0001);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x4a_lsr_acc_zero_flag() {
-        let mut cpu = program(&[0x4A]);
-        cpu.a = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -654,15 +690,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0000_0001);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x56_lsr_zpgx_zero_flag() {
-        let mut cpu = program(&[0x56, 0x20]);
-        cpu.wram.write_u8(0x20, 0);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -745,14 +772,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x29_and_imm_zero_flag() {
-        let mut cpu = program(&[0x29, 0]);
-        cpu.a = 0;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
     fn test_0x29_and_imm_negative_flag() {
         let mut cpu = program(&[0x29, 0xFF]);
         cpu.a = 0x80;
@@ -772,16 +791,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x35_and_zpgx_zero_flag() {
-        let mut cpu = program(&[0x35, 0x20]);
-        cpu.wram.write_u8(0x20, 0);
-        cpu.x = 0;
-        cpu.a = 0;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
     fn test_0x35_and_zpgx_negative_flag() {
         let mut cpu = program(&[0x35, 0x20]);
         cpu.wram.write_u8(0x20, 0xFF);
@@ -798,15 +807,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0b0101_1111);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x09_ora_imm_zero_flag() {
-        let mut cpu = program(&[0x09, 0x00]);
-        cpu.a = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x00);
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -850,17 +850,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x15_ora_zpgx_zero_flag() {
-        let mut cpu = program(&[0x15, 0x20]);
-        cpu.wram.write_u8(0x20, 0x00);
-        cpu.x = 0x00;
-        cpu.a = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x00);
-        assert_eq!(cpu.p, Status::Z);
-    }
-
-    #[test]
     fn test_0x15_ora_zpgx_negative_flag() {
         let mut cpu = program(&[0x15, 0x20]);
         cpu.wram.write_u8(0x20, 0x00);
@@ -878,15 +867,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0b0001_0100);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x2a_rol_acc_zero_flag() {
-        let mut cpu = program(&[0x2A]);
-        cpu.a = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x00);
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -952,15 +932,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x36_rol_zpgx_zero_flag() {
-        let mut cpu = program(&[0x36, 0x20]);
-        cpu.wram.write_u8(0x20, 0x00);
-        cpu.x = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
-    }
-
-    #[test]
     fn test_0x36_rol_zpgx_negative_flag() {
         let mut cpu = program(&[0x36, 0x20]);
         cpu.wram.write_u8(0x20, 0b0101_0101);
@@ -990,14 +961,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0b0101_0101);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0x6a_ror_acc_zero_flag() {
-        let mut cpu = program(&[0x6A]);
-        cpu.a = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1064,16 +1027,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x76_ror_zpgx_zero_flag() {
-        let mut cpu = program(&[0x76, 0x20]);
-        cpu.wram.write_u8(0x20, 0x00);
-        cpu.x = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0x00);
-        assert_eq!(cpu.p, Status::Z);
-    }
-
-    #[test]
     fn test_0x76_ror_zpgx_negative_flag() {
         let mut cpu = program(&[0x76, 0x20]);
         cpu.wram.write_u8(0x20, 0b0000_0001);
@@ -1101,13 +1054,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0x40);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0xa9_lda_imm_zero_flag() {
-        let mut cpu = program(&[0xA9, 0x00]);
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1142,15 +1088,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.a, 0x40);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0xb5_lda_zpgx_zero_flag() {
-        let mut cpu = program(&[0xB5, 0x20]);
-        cpu.wram.write_u8(0x20, 0);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1452,14 +1389,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0x69_adc_imm_zero_flag() {
-        let mut cpu = program(&[0x69, 0x0]);
-        cpu.a = 0;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
     fn test_0x69_adc_imm_negative_flag() {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.a = 0x7F;
@@ -1550,15 +1479,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0xf6_inc_zpgx_zero_flag() {
-        let mut cpu = program(&[0xF6, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
-    }
-
-    #[test]
     fn test_0xf6_zpgx_negative_flag() {
         let mut cpu = program(&[0xF6, 0x20]);
         cpu.wram.write_u8(0x20, 0x7F);
@@ -1573,13 +1493,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.x, 0x40);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0xa2_ldx_imm_zero_flag() {
-        let mut cpu = program(&[0xA2, 0]);
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1643,13 +1556,6 @@ mod tests {
     }
 
     #[test]
-    fn test_0xa0_ldy_imm_zero_flag() {
-        let mut cpu = program(&[0xA0, 0x00]);
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
-    }
-
-    #[test]
     fn test_0xa0_ldy_imm_negative_flag() {
         let mut cpu = program(&[0xA0, 0x80]);
         cpu.tick();
@@ -1681,15 +1587,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.y, 0x40);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0xb4_ldy_zpgx_zero_flag() {
-        let mut cpu = program(&[0xB4, 0x20]);
-        cpu.wram.write_u8(0x20, 0);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
@@ -1779,15 +1676,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0x3F);
         assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_0xd6_dec_zpgx_zero_flag() {
-        let mut cpu = program(&[0xD6, 0x20]);
-        cpu.wram.write_u8(0x20, 0x01);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::Z);
     }
 
     #[test]
