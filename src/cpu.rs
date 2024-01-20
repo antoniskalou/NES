@@ -541,110 +541,6 @@ mod tests {
         assert!(cpu.p.contains(Status::C), "{} ${},X & C", name, val);
     }
 
-    #[test]
-    fn test_acc_zero_flags() {
-        acc_zero_flag("ASL", 0x0A, 0b1000_0000);
-        acc_zero_flag("ROL", 0x2A, 0x00);
-        acc_zero_flag("LSR", 0x4A, 0b0000_0001);
-        acc_zero_flag("ROR", 0x6A, 0x00);
-    }
-
-    #[test]
-    fn test_imm_zero_flags() {
-        imm_zero_flag("ORA", 0x09, 0x00);
-        imm_zero_flag("AND", 0x29, 0x00);
-        imm_zero_flag("ADC", 0x69, 0x00);
-        imm_zero_flag("LDY", 0xA0, 0x00);
-        imm_zero_flag("LDX", 0xA2, 0x00);
-        imm_zero_flag("LDA", 0xA9, 0x00);
-    }
-
-    #[test]
-    fn test_zpg_zero_flags() {
-        zpg_zero_flag("ORA", 0x05, 0x00);
-        zpg_zero_flag("ASL", 0x06, 0b1000_0000);
-        zpg_zero_flag("AND", 0x25, 0x00);
-        zpg_zero_flag("ROL", 0x26, 0x00);
-        zpg_zero_flag("LSR", 0x46, 0b0000_0001);
-        zpg_zero_flag("ADC", 0x65, 0x00);
-        zpg_zero_flag("ROR", 0x66, 0x00);
-        zpg_zero_flag("LDY", 0xA4, 0x00);
-        zpg_zero_flag("LDA", 0xA5, 0x00);
-        zpg_zero_flag("LDX", 0xA6, 0x00);
-        zpg_zero_flag("DEC", 0xC6, 0x01);
-        zpg_zero_flag("INC", 0xE6,0xFF);
-    }
-
-    #[test]
-    fn test_zpgx_zero_flags() {
-        zpgx_zero_flag("ORA", 0x15, 0x00);
-        zpgx_zero_flag("ASL", 0x16, 0b1000_0000);
-        zpgx_zero_flag("LSR", 0x56, 0b0000_0001);
-        zpgx_zero_flag("AND", 0x35, 0x00);
-        zpgx_zero_flag("ROL", 0x36, 0x00);
-        zpgx_zero_flag("ROR", 0x76, 0x00);
-        zpgx_zero_flag("LDY", 0xB4, 0x00);
-        zpgx_zero_flag("LDA", 0xB5, 0x00);
-        zpgx_zero_flag("DEC", 0xD6, 0x01);
-        zpgx_zero_flag("INC", 0xF6, 0xFF);
-    }
-
-    #[test]
-    fn test_acc_negative_flags() {
-        acc_negative_flag("ASL", 0x0A, 0x40, 0x80);
-        acc_negative_flag("ROL", 0x2A, 0b0101_0101, 0b1010_1010);
-        acc_negative_flag("ROR", 0x6A, 0b0000_0001, 0b1000_0000);
-    }
-
-    #[test]
-    fn test_imm_negative_flags() {
-        imm_negative_flag("LDY", 0xA0, 0x80);
-        imm_negative_flag("LDX", 0xA2, 0x80);
-        imm_negative_flag("LDA", 0xA9, 0x80);
-    }
-
-    #[test]
-    fn test_zpg_negative_flags() {
-        // multiplies by 2
-        zpg_negative_flag("ASL", 0x06, 0x40, 0x80);
-        zpg_negative_flag("ROL", 0x26, 0b0101_0101, 0b1010_1010);
-        zpg_negative_flag("ROR", 0x66, 0b0000_0001, 0b1000_0000);
-        zpg_negative_flag("LDY", 0xA4, 0x80, 0x80);
-        zpg_negative_flag("LDA", 0xA5, 0x80, 0x80);
-        zpg_negative_flag("LDX", 0xA6, 0x80, 0x80);
-        zpg_negative_flag("DEC", 0xC6, 0x00, 0xFF);
-        zpg_negative_flag("INC", 0xE6, 0x7F, 0x80);
-    }
-
-    #[test]
-    fn test_zpgx_negative_flags() {
-        zpgx_negative_flag("ASL", 0x16, 0x40, 0x80);
-        zpgx_negative_flag("ROL", 0x36, 0b0101_0101, 0b1010_1010);
-        zpgx_negative_flag("ROR", 0x76, 0b0000_0001, 0b1000_0000);
-        zpgx_negative_flag("LDY", 0xB4, 0x80, 0x80);
-        zpgx_negative_flag("LDA", 0xB5, 0x80, 0x80);
-        zpgx_negative_flag("DEC", 0xD6, 0x00, 0xFF);
-        zpgx_negative_flag("INC", 0xF6, 0x7F, 0x80);
-    }
-
-    #[test]
-    fn test_acc_carry_flags() {
-        acc_carry_flag("ASL", 0x0A, 0b1000_0000, 0b0);
-        acc_carry_flag("LSR", 0x4A, 0b0000_0011, 0b1);
-    }
-
-    #[test]
-    fn test_zpg_carry_flags() {
-        zpg_carry_flag("ASL", 0x06, 0b1000_0000, 0b0);
-        zpg_carry_flag("LSR", 0x46, 0b0000_0011, 0b1);
-    }
-
-    #[test]
-    fn test_zpgx_carry_flags() {
-        zpgx_carry_flag("ASL", 0x16, 0b1000_0000, 0b0);
-        zpgx_carry_flag("LSR", 0x56, 0b0000_0011, 0b1);
-    }
-
     fn acc(name: &str, opcode: u8, val: u8, expected: u8) {
         let mut cpu = program(&[opcode]);
         cpu.a = val;
@@ -671,39 +567,153 @@ mod tests {
     }
 
     #[test]
-    fn test_acc() {
-        acc("ASL", 0x0A, 0b0000_0001, 0b0000_0010);
-        acc("ROL", 0x2A, 0b0000_1010, 0b0001_0100);
-        acc("LSR", 0x4A, 0b0000_0010, 0b0000_0001);
-        acc("ROR", 0x6A, 0b1010_1010, 0b0101_0101);
-    }
-
-    #[test]
-    fn test_zpg() {
-        zpg("ASL", 0x06, 0b0000_0001, 0b0000_0010);
-        zpg("ROL", 0x26, 0b0000_1010, 0b0001_0100);
-        zpg("LSR", 0x46, 0b0000_0010, 0b0000_0001);
-        zpg("ROR", 0x66, 0b1010_1010, 0b0101_0101);
-        zpg("LDA", 0xA5, 0x40, 0x40);
-        zpg("LDX", 0xA6, 0x40, 0x40);
-        zpg("DEC", 0xC6, 0x40, 0x3F);
-        zpg("INC", 0xE6, 0x40, 0x41);
-    }
-
-    #[test]
-    fn test_zpgx() {
-        zpgx("ASL", 0x16, 0b0000_0001, 0b0000_0010);
-        zpgx("ROL", 0x36, 0b0000_1010, 0b0001_0100);
-        zpgx("LSR", 0x56, 0b0000_0010, 0b0000_0001);
-        zpgx("ROR", 0x76, 0b1010_1010, 0b0101_0101);
-        zpgx("LDA", 0xB5, 0x40, 0x40);
-        zpgx("DEC", 0xD6, 0x40, 0x3F);
-        zpgx("INC", 0xF6, 0x40, 0x41);
-    }
-
-    #[test]
-    fn test_0x00_brk() {
+    fn test_brk() {
         // TODO
+    }
+
+    #[test]
+    fn test_asl() {
+        acc("ASL", 0x0A, 0b0000_0001, 0b0000_0010);
+        zpg("ASL", 0x06, 0b0000_0001, 0b0000_0010);
+        zpgx("ASL", 0x16, 0b0000_0001, 0b0000_0010);
+
+        acc_zero_flag("ASL", 0x0A, 0b1000_0000);
+        zpg_zero_flag("ASL", 0x06, 0b1000_0000);
+        zpgx_zero_flag("ASL", 0x16, 0b1000_0000);
+
+        acc_negative_flag("ASL", 0x0A, 0x40, 0x80);
+        // multiplies by 2
+        zpg_negative_flag("ASL", 0x06, 0x40, 0x80);
+        zpgx_negative_flag("ASL", 0x16, 0x40, 0x80);
+
+        acc_carry_flag("ASL", 0x0A, 0b1000_0000, 0b0);
+        zpg_carry_flag("ASL", 0x06, 0b1000_0000, 0b0);
+        zpgx_carry_flag("ASL", 0x16, 0b1000_0000, 0b0);
+    }
+
+    #[test]
+    fn test_rol() {
+        acc("ROL", 0x2A, 0b0000_1010, 0b0001_0100);
+        zpg("ROL", 0x26, 0b0000_1010, 0b0001_0100);
+        zpgx("ROL", 0x36, 0b0000_1010, 0b0001_0100);
+
+        acc_zero_flag("ROL", 0x2A, 0x00);
+        zpg_zero_flag("ROL", 0x26, 0x00);
+        zpgx_zero_flag("ROL", 0x36, 0x00);
+
+        acc_negative_flag("ROL", 0x2A, 0b0101_0101, 0b1010_1010);
+        zpg_negative_flag("ROL", 0x26, 0b0101_0101, 0b1010_1010);
+        zpgx_negative_flag("ROL", 0x36, 0b0101_0101, 0b1010_1010);
+    }
+
+    #[test]
+    fn test_ror() {
+        acc("ROR", 0x6A, 0b1010_1010, 0b0101_0101);
+        zpg("ROR", 0x66, 0b1010_1010, 0b0101_0101);
+        zpgx("ROR", 0x76, 0b1010_1010, 0b0101_0101);
+
+        acc_zero_flag("ROR", 0x6A, 0x00);
+        zpg_zero_flag("ROR", 0x66, 0x00);
+        zpgx_zero_flag("ROR", 0x76, 0x00);
+
+        acc_negative_flag("ROR", 0x6A, 0b0000_0001, 0b1000_0000);
+        zpg_negative_flag("ROR", 0x66, 0b0000_0001, 0b1000_0000);
+        zpgx_negative_flag("ROR", 0x76, 0b0000_0001, 0b1000_0000);
+    }
+
+    #[test]
+    fn test_ora() {
+        imm_zero_flag("ORA", 0x09, 0x00);
+        zpg_zero_flag("ORA", 0x05, 0x00);
+        zpgx_zero_flag("ORA", 0x15, 0x00);
+    }
+
+    #[test]
+    fn test_adc() {
+        imm_zero_flag("ADC", 0x69, 0x00);
+        zpg_zero_flag("ADC", 0x65, 0x00);
+    }
+
+    #[test]
+    fn test_and() {
+        imm_zero_flag("AND", 0x29, 0x00);
+        zpg_zero_flag("AND", 0x25, 0x00);
+        zpgx_zero_flag("AND", 0x35, 0x00);
+    }
+
+    #[test]
+    fn test_lda() {
+        zpg("LDA", 0xA5, 0x40, 0x40);
+        zpgx("LDA", 0xB5, 0x40, 0x40);
+
+        imm_zero_flag("LDA", 0xA9, 0x00);
+        zpg_zero_flag("LDA", 0xA5, 0x00);
+        zpgx_zero_flag("LDA", 0xB5, 0x00);
+
+        imm_negative_flag("LDA", 0xA9, 0x80);
+        zpg_negative_flag("LDA", 0xA5, 0x80, 0x80);
+        zpgx_negative_flag("LDA", 0xB5, 0x80, 0x80);
+    }
+
+    #[test]
+    fn test_ldx() {
+        zpg("LDX", 0xA6, 0x40, 0x40);
+
+        imm_zero_flag("LDX", 0xA2, 0x00);
+        zpg_zero_flag("LDX", 0xA6, 0x00);
+
+        imm_negative_flag("LDX", 0xA2, 0x80);
+        zpg_negative_flag("LDX", 0xA6, 0x80, 0x80);
+    }
+
+    #[test]
+    fn test_ldy() {
+        imm_zero_flag("LDY", 0xA0, 0x00);
+        zpg_zero_flag("LDY", 0xA4, 0x00);
+        zpgx_zero_flag("LDY", 0xB4, 0x00);
+
+        imm_negative_flag("LDY", 0xA0, 0x80);
+        zpg_negative_flag("LDY", 0xA4, 0x80, 0x80);
+        zpgx_negative_flag("LDY", 0xB4, 0x80, 0x80);
+    }
+
+    #[test]
+    fn test_dec() {
+        zpg("DEC", 0xC6, 0x40, 0x3F);
+        zpgx("DEC", 0xD6, 0x40, 0x3F);
+
+        zpg_zero_flag("DEC", 0xC6, 0x01);
+        zpgx_zero_flag("DEC", 0xD6, 0x01);
+
+        zpg_negative_flag("DEC", 0xC6, 0x00, 0xFF);
+        zpgx_negative_flag("DEC", 0xD6, 0x00, 0xFF);
+    }
+
+    #[test]
+    fn test_inc() {
+        zpg("INC", 0xE6, 0x40, 0x41);
+        zpgx("INC", 0xF6, 0x40, 0x41);
+
+        zpg_zero_flag("INC", 0xE6,0xFF);
+        zpgx_zero_flag("INC", 0xF6, 0xFF);
+
+        zpg_negative_flag("INC", 0xE6, 0x7F, 0x80);
+        zpgx_negative_flag("INC", 0xF6, 0x7F, 0x80);
+    }
+
+    #[test]
+    fn test_lsr() {
+        acc("LSR", 0x4A, 0b0000_0010, 0b0000_0001);
+        zpg("LSR", 0x46, 0b0000_0010, 0b0000_0001);
+        zpgx("LSR", 0x56, 0b0000_0010, 0b0000_0001);
+
+        acc_zero_flag("LSR", 0x4A, 0b0000_0001);
+        zpg_zero_flag("LSR", 0x46, 0b0000_0001);
+        zpgx_zero_flag("LSR", 0x56, 0b0000_0001);
+
+        acc_carry_flag("LSR", 0x4A, 0b0000_0011, 0b1);
+        zpg_carry_flag("LSR", 0x46, 0b0000_0011, 0b1);
+        zpgx_carry_flag("LSR", 0x56, 0b0000_0011, 0b1);
     }
 
     #[test]
