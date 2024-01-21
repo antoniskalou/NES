@@ -549,6 +549,14 @@ mod tests {
         assert!(cpu.p.is_empty(), "{} flags should be empty", name);
     }
 
+    fn imm(name: &str, opcode: u8, val: u8, a: u8, expected: u8) {
+        let mut cpu = program(&[opcode, val]);
+        cpu.a = a;
+        cpu.tick();
+        assert_eq!(cpu.a, expected);
+        assert!(cpu.p.is_empty(), "{} flags should be empty", name);
+    }
+
     fn zpg(name: &str, opcode: u8, val: u8, expected: u8) {
         let mut cpu = program(&[opcode, 0x20]);
         cpu.wram.write_u8(0x20, val);
@@ -623,6 +631,7 @@ mod tests {
 
     #[test]
     fn test_ora() {
+        imm("ORA", 0x09, 0b0101_0101, 0b0000_1111, 0b0101_1111);
         imm_zero_flag("ORA", 0x09, 0x00);
         zpg_zero_flag("ORA", 0x05, 0x00);
         zpgx_zero_flag("ORA", 0x15, 0x00);
@@ -630,12 +639,14 @@ mod tests {
 
     #[test]
     fn test_adc() {
+        imm("ADC", 0x69, 0x40, 0x04, 0x44);
         imm_zero_flag("ADC", 0x69, 0x00);
         zpg_zero_flag("ADC", 0x65, 0x00);
     }
 
     #[test]
     fn test_and() {
+        imm("AND", 0x29, 0b1010, 0b1111, 0b1010);
         imm_zero_flag("AND", 0x29, 0x00);
         zpg_zero_flag("AND", 0x25, 0x00);
         zpgx_zero_flag("AND", 0x35, 0x00);
@@ -643,6 +654,7 @@ mod tests {
 
     #[test]
     fn test_lda() {
+        imm("LDA", 0xA9, 0x40, 0x00, 0x40);
         zpg("LDA", 0xA5, 0x40, 0x40);
         zpgx("LDA", 0xB5, 0x40, 0x40);
 
@@ -714,6 +726,11 @@ mod tests {
         acc_carry_flag("LSR", 0x4A, 0b0000_0011, 0b1);
         zpg_carry_flag("LSR", 0x46, 0b0000_0011, 0b1);
         zpgx_carry_flag("LSR", 0x56, 0b0000_0011, 0b1);
+    }
+
+    #[test]
+    fn test_sbc() {
+        imm("SBC", 0xE9, 0x20, 0x40, 0x20);
     }
 
     #[test]
@@ -799,15 +816,6 @@ mod tests {
     }
 
     #[test]
-    fn test_and_imm() {
-        let mut cpu = program(&[0x29, 0b1010]);
-        cpu.a = 0b1111;
-        cpu.tick();
-        assert_eq!(cpu.a, 0b1010);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
     fn test_and_imm_negative_flag() {
         let mut cpu = program(&[0x29, 0xFF]);
         cpu.a = 0x80;
@@ -834,15 +842,6 @@ mod tests {
         cpu.a = 0x80;
         cpu.tick();
         assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_ora_imm() {
-        let mut cpu = program(&[0x09, 0b0101_0101]);
-        cpu.a = 0b0000_1111;
-        cpu.tick();
-        assert_eq!(cpu.a, 0b0101_1111);
-        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -970,14 +969,6 @@ mod tests {
         cpu.tick();
         assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
         assert!(!cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_lda_imm() {
-        let mut cpu = program(&[0xA9, 0x40]);
-        cpu.tick();
-        assert_eq!(cpu.a, 0x40);
-        assert!(cpu.p.is_empty());
     }
 
     #[test]
@@ -1261,15 +1252,6 @@ mod tests {
     }
 
     #[test]
-    fn test_adc_imm() {
-        let mut cpu = program(&[0x69, 0x40]);
-        cpu.a = 0x04;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x44);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
     fn test_adc_imm_negative_flag() {
         let mut cpu = program(&[0x69, 0x01]);
         cpu.a = 0x7F;
@@ -1321,15 +1303,6 @@ mod tests {
         cpu.a = 0x04;
         cpu.tick();
         assert_eq!(cpu.a, 0x44);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_sbc_imm() {
-        let mut cpu = program(&[0xE9, 0x20]);
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x20);
         assert!(cpu.p.is_empty());
     }
 
