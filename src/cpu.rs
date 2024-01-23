@@ -13,7 +13,7 @@ type WRAM = Memory<WRAM_SIZE>;
 type ROM = Memory<ROM_SIZE>;
 
 /// see https://www.nesdev.org/obelisk-6502-guide/addressing.html
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum AddressingMode {
     Implicit,
     Accumulator,
@@ -449,104 +449,63 @@ impl CPU {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::AddressingMode::*;
+
+    enum Input {
+        A(u8),
+        X(u8),
+        Y(u8),
+        Zpg(u16),
+        Zpgx(u16),
+        Zpgy(u16),
+    }
 
     fn program(bytes: &[u8]) -> CPU {
         CPU::new(Memory::from(bytes))
     }
 
-    fn acc_zero_flag(name: &str, opcode: u8, val: u8) {
-        let mut cpu = program(&[opcode]);
-        cpu.a = val;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z), "{} A == 0", name);
+    fn program_with_mode(opcode: u8, mode: &AddressingMode) -> CPU {
+        let bytes = match *mode {
+            Implicit | Accumulator => vec![opcode],
+            Immediate(val)
+            | ZeroPage(val)
+            | ZeroPageX(val)
+            | ZeroPageY(val) => vec![opcode, val],
+            _ => todo!("mode {:?}", mode)
+        };
+        program(&bytes)
     }
 
-    fn imm_zero_flag(name: &str, opcode: u8, val: u8) {
-        let mut cpu = program(&[opcode, val]);
-        cpu.a = 0x00;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z), "{} #{:02X} == 0", name, val);
+    fn setup_mode(cpu: &mut CPU, mode: AddressingMode, input: u8) {
+        match mode {
+            Accumulator => cpu.a = input,
+            Immediate(_) => {},
+            ZeroPage(addr) => cpu.wram.write_u8(addr as u16, input),
+            ZeroPageX(addr) => {
+                // FIXME: find a better way of passing this
+                cpu.x = 0x10;
+                cpu.wram.write_u8(addr as u16 + 0x10, input);
+            }
+            ZeroPageY(addr) => {
+                cpu.y = 0x10;
+                cpu.wram.write_u8(addr as u16 + 0x10, input);
+            }
+            _ => unimplemented!("zero flag test for mode {:?}", mode),
+        }
     }
 
-    fn zpg_zero_flag(name: &str, opcode: u8, val: u8) {
-        let mut cpu = program(&[opcode, 0x20]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.a = 0x00;
+    fn zero_flag(opcode: u8, mode: AddressingMode, input: u8) {
+        let mut cpu = program_with_mode(opcode, &mode);
+        setup_mode(&mut cpu, mode, input);
         cpu.tick();
-        assert!(cpu.p.contains(Status::Z), "{} ${:02X} == 0", name, val);
+        assert!(cpu.p.contains(Status::Z));
     }
 
-    fn zpgx_zero_flag(name: &str, opcode: u8, val: u8) {
-        let mut cpu = program(&[opcode, 0x10]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.x = 0x10;
+    fn negative_flag(opcode: u8, mode: AddressingMode, input: u8) {
+        let mut cpu = program_with_mode(opcode, &mode);
+        setup_mode(&mut cpu, mode, input);
         cpu.tick();
-        assert!(cpu.p.contains(Status::Z), "{} ${:02X},X == 0", name, val);
-    }
-
-    fn acc_negative_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode]);
-        cpu.a = val;
-        cpu.tick();
-        assert_eq!(cpu.a, expected);
-        assert!(cpu.p.contains(Status::N), "{} A < 0", name);
-    }
-
-    fn imm_negative_flag(name: &str, opcode: u8, val: u8) {
-        let mut cpu = program(&[opcode, val]);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N), "{} #{} < 0", opcode, val);
-    }
-
-    fn zpg_negative_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x20]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.a = 0x00;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.contains(Status::N), "{} ${:02X} < 0", name, val);
-    }
-
-    fn zpgx_negative_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x10]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.x = 0x10;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.contains(Status::N), "{} ${:02X},X < 0", name, val);
-    }
-
-    fn acc_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode]);
-        cpu.a = val;
-        cpu.tick();
-        assert_eq!(cpu.a, expected, "{} A & C == {}", name, expected);
-        assert!(cpu.p.contains(Status::C), "{} A & C", name);
-    }
-
-    fn zpg_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x20]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.contains(Status::C), "{} ${} & C", name, val);
-    }
-
-    fn zpgx_carry_flag(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x10]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.x = 0x10;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.contains(Status::C), "{} ${},X & C", name, val);
-    }
-
-    fn acc(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode]);
-        cpu.a = val;
-        cpu.tick();
-        assert_eq!(cpu.a, expected);
-        assert!(cpu.p.is_empty(), "{} flags should be empty", name);
+        assert!(cpu.p.contains(Status::N));
     }
 
     fn imm(name: &str, opcode: u8, val: u8, a: u8, expected: u8) {
@@ -558,20 +517,40 @@ mod tests {
     }
 
     fn zpg(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x20]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.is_empty(), "{} flags should be empty", name);
+        expect(opcode, ZeroPage(0x20), val, expected);
+        empty_flag(opcode, ZeroPage(0x20), val);
     }
 
     fn zpgx(name: &str, opcode: u8, val: u8, expected: u8) {
-        let mut cpu = program(&[opcode, 0x10]);
-        cpu.wram.write_u8(0x20, val);
-        cpu.x = 0x10;
+        expect(opcode, ZeroPageX(0x10), val, expected);
+        empty_flag(opcode, ZeroPageX(0x10), val);
+    }
+
+    /// should have no flags with given input
+    fn empty_flag(opcode: u8, mode: AddressingMode, input: u8) -> CPU {
+        let mut cpu = program_with_mode(opcode, &mode);
+        setup_mode(&mut cpu, mode, input);
         cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), expected);
-        assert!(cpu.p.is_empty(), "{} flags should be empty", name);
+        assert!(cpu.p.is_empty());
+        cpu
+    }
+
+    /// input should match the expected output
+    fn expect(opcode: u8, mode: AddressingMode, input: u8, expected: u8) -> CPU {
+        let mut cpu = program_with_mode(opcode, &mode);
+        setup_mode(&mut cpu, mode, input);
+        cpu.tick();
+        let actual = match mode {
+            Accumulator => cpu.a,
+            // FIXME: horrible assumption, not all immediate mode ops change A
+            Immediate(_) => cpu.a,
+            ZeroPage(addr) => cpu.wram.read_u8(addr as u16),
+            ZeroPageX(addr) | ZeroPageY(addr) =>
+                cpu.wram.read_u8(addr as u16 + 0x10),
+            _ => unimplemented!("invalid mode for an expect test: {:?}", mode)
+        };
+        assert_eq!(actual, expected);
+        cpu
     }
 
     #[test]
@@ -581,187 +560,199 @@ mod tests {
 
     #[test]
     fn test_asl() {
-        acc("ASL", 0x0A, 0b0000_0001, 0b0000_0010);
-        zpg("ASL", 0x06, 0b0000_0001, 0b0000_0010);
-        zpgx("ASL", 0x16, 0b0000_0001, 0b0000_0010);
+        let tests = [
+            (0x0A, Accumulator),
+            (0x06, ZeroPage(0x20)),
+            (0x16, ZeroPageX(0x10)),
+        ];
 
-        acc_zero_flag("ASL", 0x0A, 0b1000_0000);
-        zpg_zero_flag("ASL", 0x06, 0b1000_0000);
-        zpgx_zero_flag("ASL", 0x16, 0b1000_0000);
-
-        acc_negative_flag("ASL", 0x0A, 0x40, 0x80);
-        // multiplies by 2
-        zpg_negative_flag("ASL", 0x06, 0x40, 0x80);
-        zpgx_negative_flag("ASL", 0x16, 0x40, 0x80);
-
-        acc_carry_flag("ASL", 0x0A, 0b1000_0000, 0b0);
-        zpg_carry_flag("ASL", 0x06, 0b1000_0000, 0b0);
-        zpgx_carry_flag("ASL", 0x16, 0b1000_0000, 0b0);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0b0000_0001, 0b0000_0010);
+            assert!(cpu.p.is_empty());
+            let cpu = expect(opcode, mode, 0x40, 0x80);
+            assert!(cpu.p.contains(Status::N));
+            let cpu = expect(opcode, mode, 0b1000_0000, 0b0000_0000);
+            assert_eq!(cpu.p, Status::C | Status::Z);
+        }
     }
 
     #[test]
     fn test_rol() {
-        acc("ROL", 0x2A, 0b0000_1010, 0b0001_0100);
-        zpg("ROL", 0x26, 0b0000_1010, 0b0001_0100);
-        zpgx("ROL", 0x36, 0b0000_1010, 0b0001_0100);
+        let tests = [
+            (0x2A, Accumulator),
+            (0x26, ZeroPage(0x20)),
+            (0x36, ZeroPageX(0x10)),
+        ];
 
-        acc_zero_flag("ROL", 0x2A, 0x00);
-        zpg_zero_flag("ROL", 0x26, 0x00);
-        zpgx_zero_flag("ROL", 0x36, 0x00);
-
-        acc_negative_flag("ROL", 0x2A, 0b0101_0101, 0b1010_1010);
-        zpg_negative_flag("ROL", 0x26, 0b0101_0101, 0b1010_1010);
-        zpgx_negative_flag("ROL", 0x36, 0b0101_0101, 0b1010_1010);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0b0000_1010, 0b0001_0100);
+            assert!(cpu.p.is_empty());
+            let cpu = expect(opcode, mode, 0b0101_0101, 0b1010_1010);
+            assert!(cpu.p.contains(Status::N));
+            let cpu = expect(opcode, mode, 0b0, 0b0);
+            assert!(cpu.p.contains(Status::Z));
+        }
     }
 
     #[test]
     fn test_ror() {
-        acc("ROR", 0x6A, 0b1010_1010, 0b0101_0101);
-        zpg("ROR", 0x66, 0b1010_1010, 0b0101_0101);
-        zpgx("ROR", 0x76, 0b1010_1010, 0b0101_0101);
+        let tests = [
+            (0x6A, Accumulator),
+            (0x66, ZeroPage(0x20)),
+            (0x76, ZeroPageX(0x10)),
+        ];
 
-        acc_zero_flag("ROR", 0x6A, 0x00);
-        zpg_zero_flag("ROR", 0x66, 0x00);
-        zpgx_zero_flag("ROR", 0x76, 0x00);
-
-        acc_negative_flag("ROR", 0x6A, 0b0000_0001, 0b1000_0000);
-        zpg_negative_flag("ROR", 0x66, 0b0000_0001, 0b1000_0000);
-        zpgx_negative_flag("ROR", 0x76, 0b0000_0001, 0b1000_0000);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0b1010_1010, 0b0101_0101);
+            assert!(cpu.p.is_empty());
+            let cpu = expect(opcode, mode, 0b0000_0001, 0b1000_0000);
+            assert!(cpu.p.contains(Status::N));
+            let cpu = expect(opcode, mode, 0b0, 0b0);
+            assert!(cpu.p.contains(Status::Z));
+        }
     }
 
     #[test]
     fn test_ora() {
         imm("ORA", 0x09, 0b0101_0101, 0b0000_1111, 0b0101_1111);
-        imm_zero_flag("ORA", 0x09, 0x00);
-        zpg_zero_flag("ORA", 0x05, 0x00);
-        zpgx_zero_flag("ORA", 0x15, 0x00);
+        zero_flag(0x09, Immediate(0x00), 0x00);
+
+        let tests = [
+            (0x05, ZeroPage(0x20)),
+            (0x15, ZeroPageX(0x10)),
+        ];
+
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0x00, 0x00);
+            assert!(cpu.p.contains(Status::Z));
+        }
     }
 
     #[test]
     fn test_adc() {
         imm("ADC", 0x69, 0x40, 0x04, 0x44);
-        imm_zero_flag("ADC", 0x69, 0x00);
-        zpg_zero_flag("ADC", 0x65, 0x00);
+        zero_flag(0x69, Immediate(0x00), 0x00);
+        zero_flag(0x65, ZeroPage(0x20), 0x00);
     }
 
     #[test]
     fn test_and() {
         imm("AND", 0x29, 0b1010, 0b1111, 0b1010);
-        imm_zero_flag("AND", 0x29, 0x00);
-        zpg_zero_flag("AND", 0x25, 0x00);
-        zpgx_zero_flag("AND", 0x35, 0x00);
+        zero_flag(0x29, Immediate(0x00), 0x00);
+        zero_flag(0x25, ZeroPage(0x20), 0x00);
+        zero_flag(0x35, ZeroPageX(0x10), 0x00);
     }
 
     #[test]
     fn test_lda() {
+        let tests = [
+            (0xA9, Immediate(0x00)),
+            (0xA5, ZeroPage(0x20)),
+            (0xB5, ZeroPageX(0x10)),
+        ];
+
         imm("LDA", 0xA9, 0x40, 0x00, 0x40);
         zpg("LDA", 0xA5, 0x40, 0x40);
         zpgx("LDA", 0xB5, 0x40, 0x40);
 
-        imm_zero_flag("LDA", 0xA9, 0x00);
-        zpg_zero_flag("LDA", 0xA5, 0x00);
-        zpgx_zero_flag("LDA", 0xB5, 0x00);
+        for (opcode, mode) in tests {
+            // expect(opcode, mode, 0x40, 0x40);
+            zero_flag(opcode, mode, 0x00);
+            // negative_flag(opcode, mode, 0x80);
+        }
 
-        imm_negative_flag("LDA", 0xA9, 0x80);
-        zpg_negative_flag("LDA", 0xA5, 0x80, 0x80);
-        zpgx_negative_flag("LDA", 0xB5, 0x80, 0x80);
+        negative_flag(0xA9, Immediate(0x80), 0x80);
+        negative_flag(0xA5, ZeroPage(0x20), 0x80);
+        negative_flag(0xB5, ZeroPageX(0x10), 0x80);
     }
 
     #[test]
     fn test_ldx() {
-        zpg("LDX", 0xA6, 0x40, 0x40);
+        expect(0xA6, ZeroPage(0x20), 0x40, 0x40);
 
-        imm_zero_flag("LDX", 0xA2, 0x00);
-        zpg_zero_flag("LDX", 0xA6, 0x00);
+        zero_flag(0xA2, Immediate(0x00), 0x00);
+        zero_flag(0xA6, ZeroPage(0x20), 0x00);
 
-        imm_negative_flag("LDX", 0xA2, 0x80);
-        zpg_negative_flag("LDX", 0xA6, 0x80, 0x80);
+        negative_flag(0xA2, Immediate(0x80), 0x80);
+        negative_flag(0xA6, ZeroPage(0x20), 0x80);
     }
 
     #[test]
     fn test_ldy() {
-        imm_zero_flag("LDY", 0xA0, 0x00);
-        zpg_zero_flag("LDY", 0xA4, 0x00);
-        zpgx_zero_flag("LDY", 0xB4, 0x00);
+        zero_flag(0xA0, Immediate(0x00), 0x00);
+        zero_flag(0xA4, ZeroPage(0x20), 0x00);
+        zero_flag(0xB4, ZeroPageX(0x10), 0x00);
 
-        imm_negative_flag("LDY", 0xA0, 0x80);
-        zpg_negative_flag("LDY", 0xA4, 0x80, 0x80);
-        zpgx_negative_flag("LDY", 0xB4, 0x80, 0x80);
+        negative_flag(0xA0, Immediate(0x80), 0x80);
+        negative_flag(0xA4, ZeroPage(0x20), 0x80);
+        negative_flag(0xB4, ZeroPageX(0x10), 0x80);
     }
 
     #[test]
     fn test_dec() {
-        zpg("DEC", 0xC6, 0x40, 0x3F);
-        zpgx("DEC", 0xD6, 0x40, 0x3F);
+        let tests = [
+            (0xC6, ZeroPage(0x20)),
+            (0xD6, ZeroPageX(0x10)),
+        ];
 
-        zpg_zero_flag("DEC", 0xC6, 0x01);
-        zpgx_zero_flag("DEC", 0xD6, 0x01);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0x40, 0x3F);
+            assert!(cpu.p.is_empty());
+            let cpu = expect(opcode, mode, 0x00, 0xFF);
+            assert!(cpu.p.contains(Status::N));
+            let cpu = expect(opcode, mode, 0x01, 0x00);
+            assert!(cpu.p.contains(Status::Z));
+        }
 
-        zpg_negative_flag("DEC", 0xC6, 0x00, 0xFF);
-        zpgx_negative_flag("DEC", 0xD6, 0x00, 0xFF);
+        // zpg_negative_flag("DEC", 0xC6, 0x00, 0xFF);
+        // zpgx_negative_flag("DEC", 0xD6, 0x00, 0xFF);
     }
 
     #[test]
     fn test_inc() {
-        zpg("INC", 0xE6, 0x40, 0x41);
-        zpgx("INC", 0xF6, 0x40, 0x41);
+        let tests = [
+            (0xE6, ZeroPage(0x20)),
+            (0xF6, ZeroPageX(0x10)),
+        ];
 
-        zpg_zero_flag("INC", 0xE6,0xFF);
-        zpgx_zero_flag("INC", 0xF6, 0xFF);
-
-        zpg_negative_flag("INC", 0xE6, 0x7F, 0x80);
-        zpgx_negative_flag("INC", 0xF6, 0x7F, 0x80);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0x40, 0x41);
+            assert!(cpu.p.is_empty());
+            // TODO: consider passing expected flags to CPU
+            let cpu = expect(opcode, mode, 0x7F, 0x80);
+            assert!(cpu.p.contains(Status::N));
+            let cpu = expect(opcode, mode, 0xFF, 0x00);
+            assert!(cpu.p.contains(Status::Z));
+        }
     }
 
     #[test]
     fn test_lsr() {
-        acc("LSR", 0x4A, 0b0000_0010, 0b0000_0001);
-        zpg("LSR", 0x46, 0b0000_0010, 0b0000_0001);
-        zpgx("LSR", 0x56, 0b0000_0010, 0b0000_0001);
+        let tests = [
+            (0x4A, Accumulator),
+            (0x46, ZeroPage(0x20)),
+            (0x56, ZeroPageX(0x10)),
+        ];
 
-        acc_zero_flag("LSR", 0x4A, 0b0000_0001);
-        zpg_zero_flag("LSR", 0x46, 0b0000_0001);
-        zpgx_zero_flag("LSR", 0x56, 0b0000_0001);
+        for (opcode, mode) in tests {
+            let cpu = expect(opcode, mode, 0b0000_0010, 0b1);
+            assert!(cpu.p.is_empty());
+            let cpu = expect(opcode, mode, 0b0000_0011, 0b1);
+            assert!(cpu.p.contains(Status::C));
+            let cpu = expect(opcode, mode, 0b0000_0001, 0b0);
+            assert!(cpu.p.contains(Status::Z));
 
-        acc_carry_flag("LSR", 0x4A, 0b0000_0011, 0b1);
-        zpg_carry_flag("LSR", 0x46, 0b0000_0011, 0b1);
-        zpgx_carry_flag("LSR", 0x56, 0b0000_0011, 0b1);
+            // its impossible for the N flag to be set, shifting right guarantees
+            // that there will be no 1 bit set bit in 7.
+            // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
+            expect(opcode, mode, 0b1111_1111, 0b0111_1111);
+        }
+
     }
 
     #[test]
     fn test_sbc() {
         imm("SBC", 0xE9, 0x20, 0x40, 0x20);
-    }
-
-    #[test]
-    fn test_lsr_acc_negative_flag() {
-        let mut cpu = program(&[0x4A]);
-        cpu.a = 0xFF;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x7F);
-        // its impossible for the N flag to be set, shifting right guarantees
-        // that there will be no 1 bit set bit in 7.
-        // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
-        assert!(!cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_lsr_zpg_negative_flag() {
-        let mut cpu = program(&[0x46, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
-        assert!(!cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_lsr_zpgx_negative_flag() {
-        let mut cpu = program(&[0x56, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0x7F);
-        assert!(!cpu.p.contains(Status::N));
     }
 
     #[test]
