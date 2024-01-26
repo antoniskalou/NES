@@ -725,9 +725,20 @@ mod tests {
         assert!(cpu.p.is_empty());
 
         // zero flag
-        zero_flag(0x29, Immediate(0x00), 0x00);
-        zero_flag(0x25, ZeroPage(0x20), 0x00);
-        zero_flag(0x35, ZeroPageX(0x10), 0x00);
+        let cpu = test_op!(0x29, Immediate(0), []{ a: 0 } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x25, ZeroPage(0), [0]{ a: 0 } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x35, ZeroPageX(0), [0, 0]{ x: 1, a: 0 } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+
+        // negative flag
+        let cpu = test_op!(0x29, Immediate(0xFF), []{ a: 0x80 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0x25, ZeroPage(0), [0xFF]{ a: 0x80 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0x35, ZeroPageX(0), [0, 0xFF]{ x: 1, a: 0x80 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -877,53 +888,6 @@ mod tests {
         assert_eq!(cpu.p.contains(Status::V), false);
     }
 
-    #[test]
-    fn test_and_zpg() {
-        let mut cpu = program(&[0x25, 0x20]);
-        cpu.wram.write_u8(0x20, 0b1010);
-        cpu.a = 0b1111;
-        cpu.tick();
-        assert_eq!(cpu.a, 0b1010);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_and_zpg_negative_flag() {
-        let mut cpu = program(&[0x25, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.a = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_and_imm_negative_flag() {
-        let mut cpu = program(&[0x29, 0xFF]);
-        cpu.a = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_and_zpgx() {
-        let mut cpu = program(&[0x35, 0x10]);
-        cpu.wram.write_u8(0x20, 0b1010);
-        cpu.x = 0x10;
-        cpu.a = 0b1111;
-        cpu.tick();
-        assert_eq!(cpu.a, 0b1010);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_and_zpgx_negative_flag() {
-        let mut cpu = program(&[0x35, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.x = 0;
-        cpu.a = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
 
     #[test]
     fn test_rol_acc_carry_flag() {
