@@ -795,13 +795,28 @@ mod tests {
 
     #[test]
     fn test_ldy() {
-        zero_flag(0xA0, Immediate(0x00), 0x00);
-        zero_flag(0xA4, ZeroPage(0x20), 0x00);
-        zero_flag(0xB4, ZeroPageX(0x10), 0x00);
+        let cpu = test_op!(0xA0, Immediate(0x40), []{} => []{ y: 0x40 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0xA4, ZeroPage(0), [0x40]{} => []{ y: 0x40 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0xB4, ZeroPageX(0), [0, 0x40]{ x: 1 } => []{ y: 0x40 });
+        assert!(cpu.p.is_empty());
 
-        negative_flag(0xA0, Immediate(0x80), 0x80);
-        negative_flag(0xA4, ZeroPage(0x20), 0x80);
-        negative_flag(0xB4, ZeroPageX(0x10), 0x80);
+        // zero flag
+        let cpu = test_op!(0xA0, Immediate(0), []{} => []{ y: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0xA4, ZeroPage(0), [0]{} => []{ y: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0xA4, ZeroPageX(0), [0, 0]{ x: 1 } => []{ y: 0 });
+        assert!(cpu.p.contains(Status::Z));
+
+        // negative flag
+        let cpu = test_op!(0xA0, Immediate(0x80), []{} => []{ y: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0xA4, ZeroPage(0), [0x80]{} => []{ y: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0xB4, ZeroPageX(0), [0, 0x80]{ x: 1 } => []{ y: 0x80 });
+        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
@@ -1258,33 +1273,6 @@ mod tests {
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 2);
-    }
-
-    #[test]
-    fn test_ldy_imm() {
-        let mut cpu = program(&[0xA0, 0x40]);
-        cpu.tick();
-        assert_eq!(cpu.y, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_ldy_zpg() {
-        let mut cpu = program(&[0xA4, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.tick();
-        assert_eq!(cpu.y, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_ldy_zpgx() {
-        let mut cpu = program(&[0xB4, 0x10]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x10;
-        cpu.tick();
-        assert_eq!(cpu.y, 0x40);
-        assert!(cpu.p.is_empty());
     }
 
     #[test]
