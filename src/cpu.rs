@@ -683,14 +683,48 @@ mod tests {
 
     #[test]
     fn test_adc() {
-        imm("ADC", 0x69, 0x40, 0x04, 0x44);
-        zero_flag(0x69, Immediate(0x00), 0x00);
-        zero_flag(0x65, ZeroPage(0x20), 0x00);
+        let cpu = test_op!(0x69, Immediate(0x40), []{ a: 0x04 } => []{ a: 0x44 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0x65, ZeroPage(0), [0x40]{ a: 0x04 } => []{ a: 0x44 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x40]{ x: 1, a: 0x04 } => []{ a: 0x44 });
+        assert!(cpu.p.is_empty());
+
+        // zero flag
+        let cpu = test_op!(0x69, Immediate(0), []{ a: 0 } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x65, ZeroPage(0), [0]{} => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x75, ZeroPageX(0), [0, 0]{ x: 1 } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::Z));
+
+        // negative flag
+        let cpu = test_op!(0x69, Immediate(0x01), []{ a: 0x7F } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0x65, ZeroPage(0), [0x01]{ a: 0x7F } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x01]{ x: 1, a: 0x7F } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::N));
+
+        // carry flag
+        let cpu = test_op!(0x69, Immediate(0x01), []{ a: 0xFF } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::C));
+        let cpu = test_op!(0x65, ZeroPage(0), [0x01]{ a: 0xFF } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::C));
+        let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x01]{ x: 1, a: 0xFF } => []{ a: 0 });
+        assert!(cpu.p.contains(Status::C));
     }
 
     #[test]
     fn test_and() {
-        imm("AND", 0x29, 0b1010, 0b1111, 0b1010);
+        let cpu = test_op!(0x29, Immediate(0b1010), []{ a: 0b1111 } => []{ a: 0b1010 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0x25, ZeroPage(0), [0b1010]{ a: 0b1111 } => []{ a: 0b1010 });
+        assert!(cpu.p.is_empty());
+        let cpu = test_op!(0x35, ZeroPageX(0), [0, 0b1010]{ x: 1, a: 0b1111 } => []{ a: 0b1010 });
+        assert!(cpu.p.is_empty());
+
+        // zero flag
         zero_flag(0x29, Immediate(0x00), 0x00);
         zero_flag(0x25, ZeroPage(0x20), 0x00);
         zero_flag(0x35, ZeroPageX(0x10), 0x00);
@@ -1245,61 +1279,6 @@ mod tests {
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 2);
-    }
-
-    #[test]
-    fn test_adc_imm_negative_flag() {
-        let mut cpu = program(&[0x69, 0x01]);
-        cpu.a = 0x7F;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_adc_imm_carry_flag() {
-        let mut cpu = program(&[0x69, 0x01]);
-        cpu.a = 0xFF;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_adc_zpg() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.a = 0x04;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x44);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_adc_zpg_negative_flag() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 1);
-        cpu.a = 0x7F;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_adc_zpg_carry_flag() {
-        let mut cpu = program(&[0x65, 0x20]);
-        cpu.wram.write_u8(0x20, 1);
-        cpu.a = 0xFF;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_adc_zpgx() {
-        let mut cpu = program(&[0x75, 0x10]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x10;
-        cpu.a = 0x04;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x44);
-        assert!(cpu.p.is_empty());
     }
 
     #[test]
