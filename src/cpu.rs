@@ -467,50 +467,6 @@ mod tests {
         program(&bytes)
     }
 
-    fn setup_mode(cpu: &mut CPU, mode: AddressingMode, input: u8) {
-        match mode {
-            Accumulator => cpu.a = input,
-            Immediate(_) => {},
-            ZeroPage(addr) => cpu.wram.write_u8(addr as u16, input),
-            ZeroPageX(addr) => {
-                // FIXME: find a better way of passing this
-                cpu.x = 0x10;
-                cpu.wram.write_u8(addr as u16 + 0x10, input);
-            }
-            ZeroPageY(addr) => {
-                cpu.y = 0x10;
-                cpu.wram.write_u8(addr as u16 + 0x10, input);
-            }
-            _ => unimplemented!("zero flag test for mode {:?}", mode),
-        }
-    }
-
-    fn imm(name: &str, opcode: u8, val: u8, a: u8, expected: u8) {
-        let mut cpu = program(&[opcode, val]);
-        cpu.a = a;
-        cpu.tick();
-        assert_eq!(cpu.a, expected);
-        assert!(cpu.p.is_empty(), "{} flags should be empty", name);
-    }
-
-    /// input should match the expected output
-    fn expect(opcode: u8, mode: AddressingMode, input: u8, expected: u8) -> CPU {
-        let mut cpu = program_with_mode(opcode, mode);
-        setup_mode(&mut cpu, mode, input);
-        cpu.tick();
-        let actual = match mode {
-            Accumulator => cpu.a,
-            // FIXME: horrible assumption, not all immediate mode ops change A
-            Immediate(_) => cpu.a,
-            ZeroPage(addr) => cpu.wram.read_u8(addr as u16),
-            ZeroPageX(addr) | ZeroPageY(addr) =>
-                cpu.wram.read_u8(addr as u16 + 0x10),
-            _ => unimplemented!("invalid mode for an expect test: {:?}", mode)
-        };
-        assert_eq!(actual, expected);
-        cpu
-    }
-
     // required for stringify!
     impl std::fmt::Display for Status {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -599,6 +555,11 @@ mod tests {
         assert!(cpu.p.contains(Status::Z));
         let cpu = test_op!(0x36, ZeroPageX(0), [0, 0]{} => [0, 0]{});
         assert!(cpu.p.contains(Status::Z));
+
+        // carry flag
+        test_op!(0x2A, Accumulator, []{ a: 0b1010_1010 } => []{ a: 0b0101_0101, p: Status::C });
+        test_op!(0x26, ZeroPage(0), [0b1010_1010]{} => [0b0101_0101]{ p: Status::C });
+        test_op!(0x36, ZeroPageX(0), [0, 0b1010_1010]{ x: 1 } => [0, 0b0101_0101]{ p: Status::C });
     }
 
     #[test]
@@ -802,69 +763,62 @@ mod tests {
 
     #[test]
     fn test_dec() {
-        let tests = [
-            (0xC6, ZeroPage(0x20)),
-            (0xD6, ZeroPageX(0x10)),
-        ];
+        test_op!(0xC6, ZeroPage(0), [0x40]{} => [0x3F]{ p: Status::empty() });
+        test_op!(0xD6, ZeroPageX(0), [0, 0x40]{ x: 1 } => [0, 0x3F]{ p: Status::empty() });
 
-        for (opcode, mode) in tests {
-            let cpu = expect(opcode, mode, 0x40, 0x3F);
-            assert!(cpu.p.is_empty());
-            let cpu = expect(opcode, mode, 0x00, 0xFF);
-            assert!(cpu.p.contains(Status::N));
-            let cpu = expect(opcode, mode, 0x01, 0x00);
-            assert!(cpu.p.contains(Status::Z));
-        }
+        // negative flag
+        test_op!(0xC6, ZeroPage(0), [0x00]{} => [0xFF]{ p: Status::N });
+        test_op!(0xD6, ZeroPageX(0), [0, 0x00]{ x: 1 } => [0, 0xFF]{ p: Status::N });
 
-        // zpg_negative_flag("DEC", 0xC6, 0x00, 0xFF);
-        // zpgx_negative_flag("DEC", 0xD6, 0x00, 0xFF);
+        // zero flag
+        test_op!(0xC6, ZeroPage(0), [0x01]{} => [0x00]{ p: Status::Z });
+        test_op!(0xD6, ZeroPageX(0), [0, 0x01]{ x: 1 } => [0, 0x00]{ p: Status::Z });
     }
 
     #[test]
     fn test_inc() {
-        let tests = [
-            (0xE6, ZeroPage(0x20)),
-            (0xF6, ZeroPageX(0x10)),
-        ];
+        test_op!(0xE6, ZeroPage(0), [0x40]{} => [0x41]{});
+        test_op!(0xF6, ZeroPageX(0), [0, 0x40]{ x: 1 } => [0, 0x41]{});
 
-        for (opcode, mode) in tests {
-            let cpu = expect(opcode, mode, 0x40, 0x41);
-            assert!(cpu.p.is_empty());
-            // TODO: consider passing expected flags to CPU
-            let cpu = expect(opcode, mode, 0x7F, 0x80);
-            assert!(cpu.p.contains(Status::N));
-            let cpu = expect(opcode, mode, 0xFF, 0x00);
-            assert!(cpu.p.contains(Status::Z));
-        }
+        // negative flag
+        test_op!(0xE6, ZeroPage(0), [0x7F]{} => [0x80]{ p: Status::N });
+        test_op!(0xF6, ZeroPageX(0), [0, 0x7F]{ x: 1 } => [0, 0x80]{ p: Status::N });
+
+        // zero flag
+        test_op!(0xE6, ZeroPage(0), [0xFF]{} => [0x00]{ p: Status::Z });
+        test_op!(0xF6, ZeroPageX(0), [0, 0xFF]{ x: 1 } => [0, 0x00]{ p: Status::Z });
     }
 
     #[test]
     fn test_lsr() {
-        let tests = [
-            (0x4A, Accumulator),
-            (0x46, ZeroPage(0x20)),
-            (0x56, ZeroPageX(0x10)),
-        ];
+        test_op!(0x4A, Accumulator, []{ a: 0b10 } => []{ a: 0b01, p: Status::empty() });
+        test_op!(0x46, ZeroPage(0), [0b10]{} => [0b01]{ p: Status::empty() });
+        test_op!(0x56, ZeroPageX(0), [0, 0b10]{ x: 1 } => [0, 0b01]{ p: Status::empty() });
 
-        for (opcode, mode) in tests {
-            let cpu = expect(opcode, mode, 0b0000_0010, 0b1);
-            assert!(cpu.p.is_empty());
-            let cpu = expect(opcode, mode, 0b0000_0011, 0b1);
-            assert!(cpu.p.contains(Status::C));
-            let cpu = expect(opcode, mode, 0b0000_0001, 0b0);
-            assert!(cpu.p.contains(Status::Z));
+        // carry flag
+        test_op!(0x4A, Accumulator, []{ a: 0b11 } => []{ a: 0b01, p: Status::C });
+        test_op!(0x46, ZeroPage(0), [0b11]{} => [0b01]{ p: Status::C });
+        test_op!(0x56, ZeroPageX(0), [0, 0b11]{ x: 1 } => [0, 0b01]{ p: Status::C });
 
-            // its impossible for the N flag to be set, shifting right guarantees
-            // that there will be no 1 bit set bit in 7.
-            // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
-            expect(opcode, mode, 0b1111_1111, 0b0111_1111);
-        }
+        // zero flag
+        let cpu = test_op!(0x4A, Accumulator, []{ a: 0b01 } => []{ a: 0b00});
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x46, ZeroPage(0), [0b01]{} => [0b00]{});
+        assert!(cpu.p.contains(Status::Z));
+        let cpu = test_op!(0x56, ZeroPageX(0), [0, 0b01]{ x: 1 } => [0, 0b00]{});
+        assert!(cpu.p.contains(Status::Z));
 
+        // its impossible for the N flag to be set, shifting right guarantees
+        // that there will be no 1 bit set bit in 7.
+        // 0b1111_1111 (0xFF) >> 1 == 0b0111_1111 (0x7F)
+        test_op!(0x4A, Accumulator, []{ a: 0xFF } => []{ a: 0x7F });
+        test_op!(0x46, ZeroPage(0), [0xFF]{} => [0x7F]{});
+        test_op!(0x56, ZeroPageX(0), [0, 0xFF]{ x: 1 } => [0, 0x7F]{});
     }
 
     #[test]
     fn test_sbc() {
-        imm("SBC", 0xE9, 0x20, 0x40, 0x20);
+        test_op!(0xE9, Immediate(0x20), []{ a: 0x40 } => []{ a: 0x20, p: Status::empty() });
     }
 
     #[test]
@@ -897,45 +851,6 @@ mod tests {
         cpu.p.set(Status::V, true);
         cpu.tick();
         assert_eq!(cpu.p.contains(Status::V), false);
-    }
-
-
-    #[test]
-    fn test_rol_acc_carry_flag() {
-        let mut cpu = program(&[0x2A, 0x2A]);
-        cpu.a = 0b1010_1010;
-        cpu.tick();
-        assert_eq!(cpu.a, 0b0101_0101);
-        assert_eq!(cpu.p, Status::C);
-        // flag cleared on second tick
-        cpu.tick();
-        assert_eq!(cpu.a, 0b1010_1010);
-        assert!(!cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_rol_zpg_carry_flag() {
-        let mut cpu = program(&[0x26, 0x20, 0x26, 0x20]);
-        cpu.wram.write_u8(0x20, 0b1010_1010);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert_eq!(cpu.p, Status::C);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(!cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_rol_zpgx_carry_flag() {
-        let mut cpu = program(&[0x36, 0x10, 0x36, 0x10]);
-        cpu.wram.write_u8(0x20, 0b1010_1010);
-        cpu.x = 0x10;
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0b0101_0101);
-        assert_eq!(cpu.p, Status::C);
-        cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0b1010_1010);
-        assert!(!cpu.p.contains(Status::C));
     }
 
     #[test]
