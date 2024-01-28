@@ -776,6 +776,24 @@ mod tests {
     }
 
     #[test]
+    fn test_dex() {
+        test_op!(0xCA, Implicit, []{ x: 2 } => []{ x: 1, p: Status::empty() });
+        // underflow & negative flag
+        test_op!(0xCA, Implicit, []{ x: 0 } => []{ x: 0xFF, p: Status::N });
+        // zero flag
+        test_op!(0xCA, Implicit, []{ x: 1 } => []{ x: 0, p: Status::Z });
+    }
+
+    #[test]
+    fn test_dey() {
+        test_op!(0x88, Implicit, []{ y: 2 } => []{ y: 1, p: Status::empty() });
+        // underflow & negative flag
+        test_op!(0x88, Implicit, []{ y: 0 } => []{ y: 0xFF, p: Status::N });
+        // zero flag
+        test_op!(0x88, Implicit, []{ y: 1 } => []{ y: 0, p: Status::Z });
+    }
+
+    #[test]
     fn test_inc() {
         test_op!(0xE6, ZeroPage(0), [0x40]{} => [0x41]{});
         test_op!(0xF6, ZeroPageX(0), [0, 0x40]{ x: 1 } => [0, 0x41]{});
@@ -787,6 +805,24 @@ mod tests {
         // zero flag
         test_op!(0xE6, ZeroPage(0), [0xFF]{} => [0x00]{ p: Status::Z });
         test_op!(0xF6, ZeroPageX(0), [0, 0xFF]{ x: 1 } => [0, 0x00]{ p: Status::Z });
+    }
+
+    #[test]
+    fn test_inx() {
+        test_op!(0xE8, Implicit, []{ x: 0x40 } => []{ x: 0x41, p: Status::empty() });
+        // overflow & zero flag
+        test_op!(0xE8, Implicit, []{ x: 0xFF } => []{ x: 0, p: Status::Z });
+        // negative flag
+        test_op!(0xE8, Implicit, []{ x: 0x7F } => []{ x: 0x80, p: Status::N });
+    }
+
+    #[test]
+    fn test_iny() {
+        test_op!(0xC8, Implicit, []{ y: 0x40 } => []{ y: 0x41, p: Status::empty() });
+        // overflow & zero flag
+        test_op!(0xC8, Implicit, []{ y: 0xFF } => []{ y: 0, p: Status::Z });
+        // negative flag
+        test_op!(0xC8, Implicit, []{ y: 0x7F } => []{ y: 0x80, p: Status::N });
     }
 
     #[test]
@@ -819,6 +855,42 @@ mod tests {
     #[test]
     fn test_sbc() {
         test_op!(0xE9, Immediate(0x20), []{ a: 0x40 } => []{ a: 0x20, p: Status::empty() });
+    }
+
+    #[test]
+    fn test_tax() {
+        test_op!(0xAA, Implicit, []{ a: 0x40 } => []{ x: 0x40, p: Status::empty() });
+        // zero flag
+        test_op!(0xAA, Implicit, []{ x: 0x40 } => []{ x: 0, p: Status::Z });
+        // negative flag
+        test_op!(0xAA, Implicit, []{ a: 0x80 } => []{ a: 0x80, p: Status::N });
+    }
+
+    #[test]
+    fn test_tay() {
+        test_op!(0xA8, Implicit, []{ a: 0x40 } => []{ y: 0x40, p: Status::empty() });
+        // zero flag
+        test_op!(0xA8, Implicit, []{ y: 0x40 } => []{ y: 0, p: Status::Z });
+        // negative flag
+        test_op!(0xA8, Implicit, []{ a: 0x80 } => []{ y: 0x80, p: Status::N });
+    }
+
+    #[test]
+    fn test_txa() {
+        test_op!(0x8A, Implicit, []{ x: 0x40 } => []{ a: 0x40, p: Status::empty() });
+        // zero flag
+        test_op!(0x8A, Implicit, []{ a: 0x40 } => []{ x: 0, p: Status::Z });
+        // negative flag
+        test_op!(0x8A, Implicit, []{ x: 0x80 } => []{ a: 0x80, p: Status::N });
+    }
+
+    #[test]
+    fn test_tya() {
+        test_op!(0x98, Implicit, []{ y: 0x40 } => []{ a: 0x40, p: Status::empty() });
+        // zero flag
+        test_op!(0x98, Implicit, []{ a: 0x40 } => []{ y: 0, p: Status::Z });
+        // negative flag
+        test_op!(0x98, Implicit, []{ y: 0x80 } => []{ a: 0x80, p: Status::N });
     }
 
     #[test]
@@ -1134,128 +1206,6 @@ mod tests {
     }
 
     #[test]
-    fn test_inx() {
-        let mut cpu = program(&[0xE8]);
-        cpu.x = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.x, 0x41);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_inx_zero_flag() {
-        let mut cpu = program(&[0xE8]);
-        cpu.x = 0xFF;
-        cpu.tick();
-        assert_eq!(cpu.x, 0);
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_inx_negative_flag() {
-        let mut cpu = program(&[0xE8]);
-        cpu.x = 0x7F;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_iny() {
-        let mut cpu = program(&[0xC8]);
-        cpu.y = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.y, 0x41);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_iny_zero_flag() {
-        let mut cpu = program(&[0xC8]);
-        cpu.y = 0xFF;
-        cpu.tick();
-        assert_eq!(cpu.y, 0);
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_iny_negative_flag() {
-        let mut cpu = program(&[0xC8]);
-        cpu.y = 0x7F;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_dex() {
-        let mut cpu = program(&[0xCA]);
-        cpu.x = 2;
-        cpu.tick();
-        assert_eq!(cpu.x, 1);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_dex_underflow() {
-        let mut cpu = program(&[0xCA]);
-        cpu.x = 0;
-        cpu.tick();
-        assert_eq!(cpu.x, 0xFF);
-    }
-
-    #[test]
-    fn test_dex_zero_flag() {
-        let mut cpu = program(&[0xCA]);
-        cpu.x = 1;
-        cpu.tick();
-        assert_eq!(cpu.x, 0);
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_dex_negative_flag() {
-        let mut cpu = program(&[0xCA]);
-        cpu.x = 0xFF;
-        cpu.tick();
-        assert_eq!(cpu.x, 0xFE);
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_dey() {
-        let mut cpu = program(&[0x88]);
-        cpu.y = 2;
-        cpu.tick();
-        assert_eq!(cpu.y, 1);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_dey_underflow() {
-        let mut cpu = program(&[0x88]);
-        cpu.y = 0;
-        cpu.tick();
-        assert_eq!(cpu.y, 0xFF);
-    }
-
-    #[test]
-    fn test_dey_zero_flag() {
-        let mut cpu = program(&[0x88]);
-        cpu.y = 1;
-        cpu.tick();
-        assert_eq!(cpu.y, 0);
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_dey_negative_flag() {
-        let mut cpu = program(&[0x88]);
-        cpu.y = 0xFF;
-        cpu.tick();
-        assert_eq!(cpu.y, 0xFE);
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
     fn test_nop() {
         let mut cpu = program(&[0xEA]);
         cpu.tick();
@@ -1284,118 +1234,6 @@ mod tests {
         cpu.p.set(Status::I, false);
         cpu.tick();
         assert!(cpu.p.contains(Status::I));
-    }
-
-    #[test]
-    fn test_tax() {
-        let mut cpu = program(&[0xAA]);
-        cpu.x = 0x00;
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.x, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_tax_zero_flag() {
-        let mut cpu = program(&[0xAA]);
-        cpu.x = 0x40;
-        cpu.a = 0x00;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_tax_negative_flag() {
-        let mut cpu = program(&[0xAA]);
-        cpu.x = 0x00;
-        cpu.a = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_tay() {
-        let mut cpu = program(&[0xA8]);
-        cpu.y = 0x00;
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.y, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_tay_zero_flag() {
-        let mut cpu = program(&[0xA8]);
-        cpu.y = 0x40;
-        cpu.a = 0x00;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_tay_negative_flag() {
-        let mut cpu = program(&[0xA8]);
-        cpu.y = 0x00;
-        cpu.a = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_txa() {
-        let mut cpu = program(&[0x8A]);
-        cpu.a = 0x00;
-        cpu.x = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_txa_zero_flag() {
-        let mut cpu = program(&[0x8A]);
-        cpu.a = 0x40;
-        cpu.x = 0x00;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_txa_negative_flag() {
-        let mut cpu = program(&[0x8A]);
-        cpu.a = 0x00;
-        cpu.x = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
-    }
-
-    #[test]
-    fn test_tya() {
-        let mut cpu = program(&[0x98]);
-        cpu.a = 0x00;
-        cpu.y = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.a, 0x40);
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_tya_zero_flag() {
-        let mut cpu = program(&[0x98]);
-        cpu.a = 0x40;
-        cpu.y = 0x00;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::Z));
-    }
-
-    #[test]
-    fn test_tya_negative_flag() {
-        let mut cpu = program(&[0x98]);
-        cpu.a = 0x00;
-        cpu.y = 0x80;
-        cpu.tick();
-        assert!(cpu.p.contains(Status::N));
     }
 
     #[test]
