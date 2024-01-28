@@ -600,7 +600,6 @@ mod tests {
     fn test_ora() {
         let cpu = test_op!(0x09, Immediate(0b0101_0101), []{ a: 0b0000_1111 } => []{ a: 0b0101_1111 });
         assert!(cpu.p.is_empty());
-        // TODO: result stored in A, is this correct?
         let cpu = test_op!(0x05, ZeroPage(0), [0b0101_0101]{ a: 0b0000_1111 } => []{ a: 0b0101_1111 });
         assert!(cpu.p.is_empty());
         let cpu = test_op!(0x15, ZeroPageX(0), [0, 0b0101_0101]{ x: 1, a: 0b0000_1111 } => []{ a: 0b0101_1111 });
@@ -894,6 +893,48 @@ mod tests {
     }
 
     #[test]
+    fn test_sta() {
+        test_op!(0x85, ZeroPage(0), []{ a: 0xFF } => [0xFF]{ p: Status::empty() });
+        test_op!(0x95, ZeroPageX(0), []{ a: 0xFF, x: 1 } => [0, 0xFF]{ p: Status::empty() });
+    }
+
+    #[test]
+    fn test_cmp() {
+        // a == b
+        test_op!(0xC9, Immediate(0x40), []{ a: 0x40 } => []{ p: Status::C | Status::Z });
+        test_op!(0xC5, ZeroPage(0), [0x40]{ a: 0x40 } => []{ p: Status::C | Status::Z });
+        test_op!(0xD5, ZeroPageX(0), [0, 0x40]{ a: 0x40, x: 1 } => []{ p: Status::C | Status::Z });
+        // a > b
+        test_op!(0xC9, Immediate(0x40), []{ a: 0x41 } => []{ p: Status::C });
+        test_op!(0xC5, ZeroPage(0), [0x40]{ a: 0x41 } => []{ p: Status::C });
+        test_op!(0xD5, ZeroPageX(0), [0, 0x40]{ a: 0x41, x: 1 } => []{ p: Status::C });
+        // a < b
+        test_op!(0xC9, Immediate(0x41), []{ a: 0x40 } => []{ p: Status::empty() });
+        test_op!(0xC5, ZeroPage(0), [0x41]{ a: 0x40 } => []{ p: Status::empty() });
+        test_op!(0xD5, ZeroPageX(0), [0, 0x41]{ a: 0x40, x: 1 } => []{ p: Status::empty() });
+        // negative flag
+        test_op!(0xC9, Immediate(0xFF), []{ a: 0x80 } => []{ p: Status::N });
+        test_op!(0xC5, ZeroPage(0), [0xFF]{ a: 0x80 } => []{ p: Status::N });
+        test_op!(0xD5, ZeroPageX(0), [0, 0xFF]{ a: 0x80, x: 1 } => []{ p: Status::N });
+    }
+
+    #[test]
+    fn test_cpx() {
+        // a == b
+        test_op!(0xE0, Immediate(0x40), []{ x: 0x40 } => []{ p: Status::C | Status::Z });
+        test_op!(0xE4, ZeroPage(0), [0x40]{ x: 0x40 } => []{ p: Status::C | Status::Z });
+        // a > b
+        test_op!(0xE0, Immediate(0x40), []{ x: 0x41 } => []{ p: Status::C });
+        test_op!(0xE4, ZeroPage(0), [0x40]{ x: 0x41 } => []{ p: Status::C });
+        // a < b
+        test_op!(0xE0, Immediate(0x41), []{ x: 0x40 } => []{ p: Status::empty() });
+        test_op!(0xE4, ZeroPage(0), [0x41]{ x: 0x40 } => []{ p: Status::empty() });
+        // negative flag
+        test_op!(0xE0, Immediate(0xFF), []{ x: 0x80 } => []{ p: Status::N });
+        test_op!(0xE4, ZeroPage(0), [0xFF]{ x: 0x80 } => []{ p: Status::N });
+    }
+
+    #[test]
     fn test_clc() {
         let mut cpu = program(&[0x18]);
         cpu.p.set(Status::C, true);
@@ -926,21 +967,34 @@ mod tests {
     }
 
     #[test]
-    fn test_sta_zpg() {
-        let mut cpu = program(&[0x85, 0x20]);
-        cpu.a = 0xFF;
+    fn test_nop() {
+        let mut cpu = program(&[0xEA]);
         cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
-        assert!(cpu.p.is_empty());
+        // as long as we don't panic, we're good
     }
 
     #[test]
-    fn test_sta_zpgx() {
-        let mut cpu = program(&[0x95, 0x10]);
-        cpu.x = 0x10;
-        cpu.a = 0xFF;
+    fn test_sec() {
+        let mut cpu = program(&[0x38]);
+        cpu.p.set(Status::C, false);
         cpu.tick();
-        assert_eq!(cpu.wram.read_u8(0x20), 0xFF);
+        assert!(cpu.p.contains(Status::C));
+    }
+
+    #[test]
+    fn test_sed() {
+        let mut cpu = program(&[0xF8]);
+        cpu.p.set(Status::D, false);
+        cpu.tick();
+        assert!(cpu.p.contains(Status::D));
+    }
+
+    #[test]
+    fn test_sei() {
+        let mut cpu = program(&[0x78]);
+        cpu.p.set(Status::I, false);
+        cpu.tick();
+        assert!(cpu.p.contains(Status::I));
     }
 
     /// creates a program that checks the behaviour of a branch operation
@@ -1203,212 +1257,5 @@ mod tests {
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.y, 2);
-    }
-
-    #[test]
-    fn test_nop() {
-        let mut cpu = program(&[0xEA]);
-        cpu.tick();
-        // as long as we don't panic, we're good
-    }
-
-    #[test]
-    fn test_sec() {
-        let mut cpu = program(&[0x38]);
-        cpu.p.set(Status::C, false);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::C));
-    }
-
-    #[test]
-    fn test_sed() {
-        let mut cpu = program(&[0xF8]);
-        cpu.p.set(Status::D, false);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::D));
-    }
-
-    #[test]
-    fn test_sei() {
-        let mut cpu = program(&[0x78]);
-        cpu.p.set(Status::I, false);
-        cpu.tick();
-        assert!(cpu.p.contains(Status::I));
-    }
-
-    #[test]
-    fn test_cmp_imm_eq() {
-        let mut cpu = program(&[0xC9, 0x40]);
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C | Status::Z)
-    }
-
-    #[test]
-    fn test_cmp_imm_gt() {
-        let mut cpu = program(&[0xC9, 0x40]);
-        cpu.a = 0x41;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
-    fn test_cmp_imm_lt() {
-        let mut cpu = program(&[0xC9, 0x41]);
-        cpu.a = 0x40;
-        cpu.tick();
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_cmp_imm_negative_flag() {
-        let mut cpu = program(&[0xC9, 0xFF]);
-        cpu.a = 0x80;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::N);
-    }
-
-    #[test]
-    fn test_cmp_zpg_eq() {
-        let mut cpu = program(&[0xC5, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C | Status::Z);
-    }
-
-    #[test]
-    fn test_cmp_zpg_gt() {
-        let mut cpu = program(&[0xC5, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.a = 0x41;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
-    fn test_cmp_zpg_lt() {
-        let mut cpu = program(&[0xC5, 0x20]);
-        cpu.wram.write_u8(0x20, 0x41);
-        cpu.a = 0x40;
-        cpu.tick();
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_cmp_zpg_negative_flag() {
-        let mut cpu = program(&[0xC5, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.a = 0x80;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::N);
-    }
-
-    #[test]
-    fn test_cmp_zpgx_eq() {
-        let mut cpu = program(&[0xD5, 0x10]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x10;
-        cpu.a = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C | Status::Z);
-    }
-
-    #[test]
-    fn test_cmp_zpgx_gt() {
-        let mut cpu = program(&[0xD5, 0x10]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x10;
-        cpu.a = 0x41;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
-    fn test_cmp_zpgx_lt() {
-        let mut cpu = program(&[0xD5, 0x10]);
-        cpu.wram.write_u8(0x20, 0x41);
-        cpu.x = 0x10;
-        cpu.a = 0x40;
-        cpu.tick();
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_cmp_zpgx_negative_flag() {
-        let mut cpu = program(&[0xD5, 0x10]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.x = 0x10;
-        cpu.a = 0x80;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::N);
-    }
-
-    #[test]
-    fn test_cpx_imm_eq() {
-        let mut cpu = program(&[0xE0, 0x40]);
-        cpu.x = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C | Status::Z);
-    }
-
-    #[test]
-    fn test_cpx_imm_gt() {
-        let mut cpu = program(&[0xE0, 0x40]);
-        cpu.x = 0x41;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
-    fn test_cpx_imm_lt() {
-        let mut cpu = program(&[0xE0, 0x41]);
-        cpu.x = 0x40;
-        cpu.tick();
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_cpx_imm_negative_flag() {
-        let mut cpu = program(&[0xE0, 0xFF]);
-        cpu.x = 0x80;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::N);
-    }
-
-    #[test]
-    fn test_cpx_zpg_eq() {
-        let mut cpu = program(&[0xE4, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x40;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C | Status::Z);
-    }
-
-    #[test]
-    fn test_cpx_zpg_gt() {
-        let mut cpu = program(&[0xE4, 0x20]);
-        cpu.wram.write_u8(0x20, 0x40);
-        cpu.x = 0x41;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::C);
-    }
-
-    #[test]
-    fn test_cpx_zpg_lt() {
-        let mut cpu = program(&[0xE4, 0x20]);
-        cpu.wram.write_u8(0x20, 0x41);
-        cpu.x = 0x40;
-        cpu.tick();
-        assert!(cpu.p.is_empty());
-    }
-
-    #[test]
-    fn test_cpx_zpg_negative_flag() {
-        let mut cpu = program(&[0xE4, 0x20]);
-        cpu.wram.write_u8(0x20, 0xFF);
-        cpu.x = 0x80;
-        cpu.tick();
-        assert_eq!(cpu.p, Status::N);
     }
 }
