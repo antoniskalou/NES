@@ -177,6 +177,7 @@ impl CPU {
             0x15 => (ORA, ZeroPageX(self.fetch())),
             0x16 => (ASL, ZeroPageX(self.fetch())),
             0x18 => (CLC, Implicit),
+            0x24 => (BIT, ZeroPage(self.fetch())),
             0x25 => (AND, ZeroPage(self.fetch())),
             0x26 => (ROL, ZeroPage(self.fetch())),
             0x29 => (AND, Immediate(self.fetch())),
@@ -310,6 +311,13 @@ impl CPU {
                 if self.p.contains(Status::V) {
                     self.branch(offset);
                 }
+            }
+            (BIT, mode) => {
+                let data = self.read_operand(&mode);
+                let result = self.a & data;
+                self.p.set(Status::Z, result == 0);
+                self.p.set(Status::V, data & Status::V.bits() != 0);
+                self.p.set(Status::N, data & Status::N.bits() != 0);
             }
             (CLC, Implicit) => {
                 self.p.set(Status::C, false);
@@ -539,6 +547,12 @@ mod tests {
         test_op!(0x0A, Accumulator, []{ a: 0x80 } => []{ a: 0, p: Status::C | Status::Z });
         test_op!(0x06, ZeroPage(0), [0x80]{} => [0]{ p: Status::C | Status::Z });
         test_op!(0x16, ZeroPageX(0), [0, 0x80]{ x: 1 } => [0, 0]{ p: Status::C | Status::Z });
+    }
+
+    #[test]
+    fn test_bit() {
+        test_op!(0x24, ZeroPage(0), [0]{ a: 0x0F } => []{ p: Status::Z });
+        test_op!(0x24, ZeroPage(0), [0xF0]{ a: 0xFF } => []{ p: Status::N | Status::V });
     }
 
     #[test]
