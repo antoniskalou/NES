@@ -217,6 +217,8 @@ impl CPU {
             0xB5 => (LDA, ZeroPageX(self.fetch())),
             0xB6 => (LDX, ZeroPageY(self.fetch())),
             0xB8 => (CLV, Implicit),
+            0xC0 => (CPY, Immediate(self.fetch())),
+            0xC4 => (CPY, ZeroPage(self.fetch())),
             0xC5 => (CMP, ZeroPage(self.fetch())),
             0xC6 => (DEC, ZeroPage(self.fetch())),
             0xC8 => (INY, Implicit),
@@ -332,6 +334,12 @@ impl CPU {
                 self.p.set(Status::C, self.x >= data);
                 self.p.set(Status::Z, self.x == data);
                 self.p.set_n_flag(self.x);
+            }
+            (CPY, mode) => {
+                let data = self.read_operand(&mode);
+                self.p.set(Status::C, self.y >= data);
+                self.p.set(Status::Z, self.y == data);
+                self.p.set_n_flag(self.y);
             }
             (DEC, mode) => {
                 let data = self.read_operand(&mode);
@@ -955,6 +963,22 @@ mod tests {
         // negative flag
         test_op!(0xE0, Immediate(0xFF), []{ x: 0x80 } => []{ p: Status::N });
         test_op!(0xE4, ZeroPage(0), [0xFF]{ x: 0x80 } => []{ p: Status::N });
+    }
+
+    #[test]
+    fn test_cpy() {
+        // a == b
+        test_op!(0xC0, Immediate(0x40), []{ y: 0x40 } => []{ p: Status::C | Status::Z });
+        test_op!(0xC4, ZeroPage(0), [0x40]{ y: 0x40 } => []{ p: Status::C | Status::Z });
+        // a > b
+        test_op!(0xC0, Immediate(0x40), []{ y: 0x41 } => []{ p: Status::C });
+        test_op!(0xC4, ZeroPage(0), [0x40]{ y: 0x41 } => []{ p: Status::C });
+        // a < b
+        test_op!(0xC0, Immediate(0x41), []{ y: 0x40 } => []{ p: Status::empty() });
+        test_op!(0xC4, ZeroPage(0), [0x41]{ y: 0x40 } => []{ p: Status::empty() });
+        // negative flag
+        test_op!(0xC0, Immediate(0xFF), []{ y: 0x80 } => []{ p: Status::N });
+        test_op!(0xC4, ZeroPage(0), [0xFF]{ y: 0x80 } => []{ p: Status::N });
     }
 
     #[test]
