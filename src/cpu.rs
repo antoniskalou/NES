@@ -186,9 +186,12 @@ impl CPU {
             0x35 => (AND, ZeroPageX(self.fetch())),
             0x36 => (ROL, ZeroPageX(self.fetch())),
             0x38 => (SEC, Implicit),
+            0x45 => (EOR, ZeroPage(self.fetch())),
             0x46 => (LSR, ZeroPage(self.fetch())),
+            0x49 => (EOR, Immediate(self.fetch())),
             0x4A => (LSR, Accumulator),
             0x50 => (BVC, Relative(self.fetch() as i8)),
+            0x55 => (EOR, ZeroPageX(self.fetch())),
             0x56 => (LSR, ZeroPageX(self.fetch())),
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
@@ -362,6 +365,11 @@ impl CPU {
             (DEY, Implicit) => {
                 self.y = self.y.wrapping_sub(1);
                 self.p.set_zn_flags(self.y);
+            }
+            (EOR, mode) => {
+                let data = self.read_operand(&mode);
+                self.a ^= data;
+                self.p.set_zn_flags(self.a);
             }
             (LDA, mode) => {
                 self.a = self.read_operand(&mode);
@@ -644,6 +652,21 @@ mod tests {
         assert!(cpu.p.contains(Status::N));
         let cpu = test_op!(0x15, ZeroPageX(0), [0, 0]{ a: 0x80 } => []{ a: 0x80 });
         assert!(cpu.p.contains(Status::N));
+    }
+
+    #[test]
+    fn test_eor() {
+        test_op!(0x49, Immediate(0b0000_1111), []{a:0b0101_0101} => []{a:0b0101_1010, p: Status::empty()});
+        test_op!(0x45, ZeroPage(0), [0b0000_1111]{a:0b0101_0101} => []{a:0b0101_1010, p: Status::empty()});
+        test_op!(0x55, ZeroPageX(0), [0, 0b0000_1111]{x: 1, a: 0b0101_0101} => []{a:0b0101_1010, p: Status::empty()});
+        // negative flag
+        test_op!(0x49, Immediate(0b1000_1111), []{a:0b0101_0101} => []{a:0b1101_1010, p: Status::N});
+        test_op!(0x45, ZeroPage(0), [0b1000_1111]{a:0b0101_0101} => []{a:0b1101_1010, p: Status::N});
+        test_op!(0x55, ZeroPageX(0), [0, 0b1000_1111]{x:1, a:0b0101_0101} => []{a:0b1101_1010, p: Status::N});
+        // zero flag
+        test_op!(0x49, Immediate(0xFF), []{a:0xFF} => []{a: 0, p: Status::Z});
+        test_op!(0x45, ZeroPage(0), [0xFF]{a:0xFF} => []{a: 0, p: Status::Z});
+        test_op!(0x55, ZeroPageX(0), [0, 0xFF]{x: 1, a: 0xFF} => []{a: 0, p: Status::Z});
     }
 
     #[test]
