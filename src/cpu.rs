@@ -397,9 +397,11 @@ impl CPU {
             (STA, mode) => self.write_operand(mode, self.a),
             (SBC, mode) => {
                 let data = self.read_operand(&mode);
-                let (result, o) = self.a.overflowing_sub(data);
+                let carry = !self.p.contains(Status::C) as u8;
+                let (result, o1) = self.a.overflowing_sub(data);
+                let (result, o2) = result.overflowing_sub(carry);
                 self.a = result;
-                self.p.set(Status::C, o);
+                self.p.set(Status::C, o1 || o2);
                 self.p.set_zn_flags(self.a);
             }
             (INC, mode) => {
@@ -657,6 +659,32 @@ mod tests {
     }
 
     #[test]
+    fn test_sbc() {
+        test_op!(0xE9, Immediate(0x20), []{ a: 0x40, p: Status::C } => []{ a: 0x20, p: Status::empty() });
+        test_op!(0xE5, ZeroPage(0), [0x20]{ a: 0x40, p: Status::C } => []{ a: 0x20, p: Status::empty() });
+        test_op!(0xF5, ZeroPageX(0), [0, 0x20]{ x: 1, a: 0x40, p: Status::C } => []{ a: 0x20, p: Status::empty() });
+        // zero flag
+        test_op!(0xE9, Immediate(0), []{ a: 0, p: Status::C } => []{ a: 0, p: Status::Z });
+        test_op!(0xE5, ZeroPage(0), [0]{ a: 0, p: Status::C } => []{ a: 0, p: Status::Z });
+        test_op!(0xF5, ZeroPageX(0), [0, 0]{ x: 1, a: 0, p: Status::C } => []{ a: 0, p: Status::Z });
+        // negative flag
+        let cpu = test_op!(0xE9, Immediate(1), []{ a: 0, p: Status::C } => []{ a: 0xFF });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0xE5, ZeroPage(0), [1]{ a: 0, p: Status::C } => []{ a: 0xFF });
+        assert!(cpu.p.contains(Status::N));
+        let cpu = test_op!(0xF5, ZeroPageX(0), [0, 1]{ x: 1, a: 0, p: Status::C } => []{ a: 0xFF });
+        assert!(cpu.p.contains(Status::N));
+        // carry flag
+        test_op!(0xE9, Immediate(2), []{ a: 10, p: Status::C } => []{ a: 8 });
+        test_op!(0xE9, Immediate(2), []{ a: 10, p: Status::empty() } => []{ a: 7 });
+        test_op!(0xE5, ZeroPage(0), [2]{ a: 10, p: Status::C } => []{ a: 8 });
+        test_op!(0xE5, ZeroPage(0), [2]{ a: 10, p: Status::empty() } => []{ a: 7 });
+        test_op!(0xF5, ZeroPageX(0), [0, 2]{ x: 1, a: 10, p: Status::C } => []{ a: 8 });
+        test_op!(0xF5, ZeroPageX(0), [0, 2]{ x: 1, a: 10, p: Status::empty() } => []{ a: 7 });
+        // TODO: overflow
+    }
+
+    #[test]
     fn test_and() {
         let cpu = test_op!(0x29, Immediate(0b1010), []{ a: 0b1111 } => []{ a: 0b1010 });
         assert!(cpu.p.is_empty());
@@ -849,11 +877,6 @@ mod tests {
         test_op!(0x4A, Accumulator, []{ a: 0xFF } => []{ a: 0x7F });
         test_op!(0x46, ZeroPage(0), [0xFF]{} => [0x7F]{});
         test_op!(0x56, ZeroPageX(0), [0, 0xFF]{ x: 1 } => [0, 0x7F]{});
-    }
-
-    #[test]
-    fn test_sbc() {
-        test_op!(0xE9, Immediate(0x20), []{ a: 0x40 } => []{ a: 0x20, p: Status::empty() });
     }
 
     #[test]
