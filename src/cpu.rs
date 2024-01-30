@@ -269,12 +269,15 @@ impl CPU {
                 self.p.set_zn_flags(self.a);
             }
             (ADC, mode) => {
+                let a = self.a;
                 let data = self.read_operand(&mode);
-                let (result, o) = self.a.overflowing_add(data);
+                let carry = self.p.contains(Status::C) as u8;
+                let (result, o1) = a.overflowing_add(data);
+                let (result, o2) = result.overflowing_add(carry);
                 self.a = result;
                 self.p.set_zn_flags(self.a);
-                self.p.set(Status::C, o);
-                // TODO: overflow flag
+                self.p.set(Status::C, o1 || o2);
+                self.p.set(Status::V, (a ^ data) & 0x80 == 0 && (a ^ self.a) & 0x80 != 0)
             }
             (BCC, Relative(offset)) => {
                 if !self.p.contains(Status::C) {
@@ -684,6 +687,11 @@ mod tests {
         let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x40]{ x: 1, a: 0x04 } => []{ a: 0x44 });
         assert!(cpu.p.is_empty());
 
+        // add with carry
+        test_op!(0x69, Immediate(3), []{ a: 2, p: Status::C } => []{ a: 6 });
+        test_op!(0x65, ZeroPage(0), [3]{ a: 2, p: Status::C } => []{ a: 6 });
+        test_op!(0x75, ZeroPageX(0), [0, 3]{ x: 1, a: 2, p: Status::C } => []{ a: 6 });
+
         // zero flag
         let cpu = test_op!(0x69, Immediate(0), []{ a: 0 } => []{ a: 0 });
         assert!(cpu.p.contains(Status::Z));
@@ -707,6 +715,14 @@ mod tests {
         assert!(cpu.p.contains(Status::C));
         let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x01]{ x: 1, a: 0xFF } => []{ a: 0 });
         assert!(cpu.p.contains(Status::C));
+
+        // overflow flag
+        let cpu = test_op!(0x69, Immediate(0x7F), []{ a: 1 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::V));
+        let cpu = test_op!(0x65, ZeroPage(0), [0x7F]{ a: 1 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::V));
+        let cpu = test_op!(0x75, ZeroPageX(0), [0, 0x7F]{ x: 1, a: 1 } => []{ a: 0x80 });
+        assert!(cpu.p.contains(Status::V));
     }
 
     #[test]
