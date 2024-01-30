@@ -429,13 +429,15 @@ impl CPU {
             (STX, mode) => self.write_operand(mode, self.x),
             (STY, mode) => self.write_operand(mode, self.y),
             (SBC, mode) => {
+                let a = self.a;
                 let data = self.read_operand(&mode);
                 let carry = !self.p.contains(Status::C) as u8;
-                let (result, o1) = self.a.overflowing_sub(data);
+                let (result, o1) = a.overflowing_sub(data);
                 let (result, o2) = result.overflowing_sub(carry);
                 self.a = result;
-                self.p.set(Status::C, o1 || o2);
                 self.p.set_zn_flags(self.a);
+                self.p.set(Status::C, o1 || o2);
+                self.p.set(Status::V, (a ^ data) & 0x80 != 0 && (a ^ self.a) & 0x80 != 0);
             }
             (INC, mode) => {
                 let data = self.read_operand(&mode);
@@ -748,7 +750,13 @@ mod tests {
         test_op!(0xE5, ZeroPage(0), [2]{ a: 10, p: Status::empty() } => []{ a: 7 });
         test_op!(0xF5, ZeroPageX(0), [0, 2]{ x: 1, a: 10, p: Status::C } => []{ a: 8 });
         test_op!(0xF5, ZeroPageX(0), [0, 2]{ x: 1, a: 10, p: Status::empty() } => []{ a: 7 });
-        // TODO: overflow
+        // overflow
+        let cpu = test_op!(0xE9, Immediate(176), []{ a: 80, p: Status::C } => []{ a: 160 });
+        assert!(cpu.p.contains(Status::V));
+        let cpu = test_op!(0xE5, ZeroPage(0), [176]{ a: 80, p: Status::C } => []{ a: 160 });
+        assert!(cpu.p.contains(Status::V));
+        let cpu = test_op!(0xF5, ZeroPageX(0), [0, 176]{ x: 1, a: 80, p: Status::C } => []{ a: 160 });
+        assert!(cpu.p.contains(Status::V));
     }
 
     #[test]
