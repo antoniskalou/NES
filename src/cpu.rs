@@ -202,11 +202,15 @@ impl CPU {
             0x75 => (ADC, ZeroPageX(self.fetch())),
             0x76 => (ROR, ZeroPageX(self.fetch())),
             0x78 => (SEI, Implicit),
+            0x84 => (STY, ZeroPage(self.fetch())),
             0x85 => (STA, ZeroPage(self.fetch())),
+            0x86 => (STX, ZeroPage(self.fetch())),
             0x88 => (DEY, Implicit),
             0x8A => (TXA, Implicit),
             0x90 => (BCC, Relative(self.fetch() as i8)),
+            0x94 => (STY, ZeroPageX(self.fetch())),
             0x95 => (STA, ZeroPageX(self.fetch())),
+            0x96 => (STX, ZeroPageY(self.fetch())),
             0x98 => (TYA, Implicit),
             0xA0 => (LDY, Immediate(self.fetch())),
             0xA2 => (LDX, Immediate(self.fetch())),
@@ -419,6 +423,8 @@ impl CPU {
                 self.p.set(Status::I, true);
             }
             (STA, mode) => self.write_operand(mode, self.a),
+            (STX, mode) => self.write_operand(mode, self.x),
+            (STY, mode) => self.write_operand(mode, self.y),
             (SBC, mode) => {
                 let data = self.read_operand(&mode);
                 let carry = !self.p.contains(Status::C) as u8;
@@ -964,6 +970,18 @@ mod tests {
     fn test_sta() {
         test_op!(0x85, ZeroPage(0), []{ a: 0xFF } => [0xFF]{ p: Status::empty() });
         test_op!(0x95, ZeroPageX(0), []{ a: 0xFF, x: 1 } => [0, 0xFF]{ p: Status::empty() });
+    }
+
+    #[test]
+    fn test_stx() {
+        test_op!(0x86, ZeroPage(0), []{ x: 0xFF } => [0xFF]{ p: Status::empty() });
+        test_op!(0x96, ZeroPageY(0), []{ x: 0xFF, y: 1 } => [0, 0xFF]{ p: Status::empty() });
+    }
+
+    #[test]
+    fn test_sty() {
+        test_op!(0x84, ZeroPage(0), []{ y: 0xFF } => [0xFF]{ p: Status::empty() });
+        test_op!(0x94, ZeroPageX(0), []{ y: 0xFF, x: 1 } => [0, 0xFF]{ p: Status::empty() });
     }
 
     #[test]
