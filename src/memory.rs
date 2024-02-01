@@ -19,8 +19,21 @@ impl<const N: usize> Memory<N> {
         self.0[pos as usize]
     }
 
+    pub fn read_u16(&self, pos: u16) -> u16 {
+        let lo = self.read_u8(pos) as u16;
+        let hi = self.read_u8(pos + 1) as u16;
+        (hi << 8) | (lo as u16)
+    }
+
     pub fn write_u8(&mut self, pos: u16, data: u8) {
         self.0[pos as usize] = data;
+    }
+
+    pub fn write_u16(&mut self, pos: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xFF) as u8;
+        self.write_u8(pos, lo);
+        self.write_u8(pos + 1, hi);
     }
 }
 
@@ -65,5 +78,14 @@ mod tests {
         assert_eq!(mem.read_u8(0), 0xFF);
         // next byte shouldn't be affected
         assert_eq!(mem.read_u8(1), 0x00);
+    }
+
+    #[test]
+    fn test_read_write_u16() {
+        let mut mem = Memory::<8>::new();
+        mem.write_u16(0, 0xABCD);
+        assert_eq!(mem.read_u16(0), 0xABCD);
+        assert_eq!(mem.read_u16(1), 0x00AB);
+        assert_eq!(mem.read_u16(2), 0x0000);
     }
 }

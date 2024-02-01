@@ -22,10 +22,10 @@ pub enum AddressingMode {
     ZeroPageX(u8),
     ZeroPageY(u8),
     Relative(i8),
-    Absolute,
-    AbsoluteX,
-    AbsoluteY,
-    Indirect,
+    Absolute(u16),
+    AbsoluteX(u16),
+    AbsoluteY(u16),
+    Indirect(u16),
     IndexedIndirect,
     IndirectIndexed,
 }
@@ -99,7 +99,8 @@ impl CPU {
             x: 0,
             y: 0,
             p: Status::U & Status::I,
-            sp: 0xFD,
+            // FIXME: not real location of the stack
+            sp: 0xFF,
             pc: 0,
             rom,
             wram,
@@ -162,6 +163,12 @@ impl CPU {
         opcode
     }
 
+    fn fetch_u16(&mut self) -> u16 {
+        let opcode = self.rom.read_u16(self.pc);
+        self.pc += 2;
+        opcode
+    }
+
     // may step PC if opcode requires data
     fn decode(&mut self, opcode: u8) -> Instruction {
         use AddressingMode::*;
@@ -170,6 +177,7 @@ impl CPU {
             0x00 => (BRK, Implicit),
             0x05 => (ORA, ZeroPage(self.fetch())),
             0x06 => (ASL, ZeroPage(self.fetch())),
+            0x08 => (PHP, Implicit),
             0x09 => (ORA, Immediate(self.fetch())),
             0x0A => (ASL, Accumulator),
             // conversion from u8 to i8 uses the same schemantics as the CPU
@@ -180,6 +188,7 @@ impl CPU {
             0x24 => (BIT, ZeroPage(self.fetch())),
             0x25 => (AND, ZeroPage(self.fetch())),
             0x26 => (ROL, ZeroPage(self.fetch())),
+            0x28 => (PLP, Implicit),
             0x29 => (AND, Immediate(self.fetch())),
             0x2A => (ROL, Accumulator),
             0x30 => (BMI, Relative(self.fetch() as i8)),
@@ -188,6 +197,7 @@ impl CPU {
             0x38 => (SEC, Implicit),
             0x45 => (EOR, ZeroPage(self.fetch())),
             0x46 => (LSR, ZeroPage(self.fetch())),
+            0x48 => (PHA, Implicit),
             0x49 => (EOR, Immediate(self.fetch())),
             0x4A => (LSR, Accumulator),
             0x50 => (BVC, Relative(self.fetch() as i8)),
@@ -196,12 +206,16 @@ impl CPU {
             0x58 => (CLI, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
             0x66 => (ROR, ZeroPage(self.fetch())),
+            0x68 => (PLA, Implicit),
             0x69 => (ADC, Immediate(self.fetch())),
             0x6A => (ROR, Accumulator),
+            0x6D => (ADC, Absolute(self.fetch_u16())),
             0x70 => (BVS, Relative(self.fetch() as i8)),
             0x75 => (ADC, ZeroPageX(self.fetch())),
             0x76 => (ROR, ZeroPageX(self.fetch())),
             0x78 => (SEI, Implicit),
+            0x79 => (ADC, AbsoluteY(self.fetch_u16())),
+            0x7D => (ADC, AbsoluteX(self.fetch_u16())),
             0x84 => (STY, ZeroPage(self.fetch())),
             0x85 => (STA, ZeroPage(self.fetch())),
             0x86 => (STX, ZeroPage(self.fetch())),
@@ -401,6 +415,21 @@ impl CPU {
                 let data = self.read_operand(&mode);
                 self.a |= data;
                 self.p.set_zn_flags(self.a);
+            }
+            (PHA, Implicit) => {
+                self.push_stack(self.a);
+            }
+            (PHP, Implicit) => {
+                self.push_stack(self.p.bits());
+            }
+            (PLA, Implicit) => {
+                self.a = self.pop_stack();
+                self.p.set_zn_flags(self.a);
+            }
+            (PLP, Implicit) => {
+                // can use retain here because we have accounted for all possible
+                // bits in an 8 bit value.
+                self.p = Status::from_bits_retain(self.pop_stack());
             }
             (ROL, mode) => {
                 let data = self.read_operand(&mode);
@@ -1058,6 +1087,37 @@ mod tests {
         // negative flag
         test_op!(0xC0, Immediate(0xFF), []{ y: 0x80 } => []{ p: Status::N });
         test_op!(0xC4, ZeroPage(0), [0xFF]{ y: 0x80 } => []{ p: Status::N });
+    }
+
+    #[test]
+    fn test_pla() {
+        let mut cpu = program(&[0x68, 0x68]);
+        cpu.push_stack(0x80);
+        cpu.push_stack(0);
+        cpu.tick();
+        assert_eq!(cpu.p, Status::Z);
+        cpu.tick();
+        assert_eq!(cpu.p, Status::N);
+    }
+
+    #[test]
+    fn test_pha_pla() {
+        let mut cpu = program(&[0x48, 0x68]);
+        cpu.a = 0x40;
+        cpu.tick();
+        cpu.a = 0;
+        cpu.tick();
+        assert_eq!(cpu.a, 0x40);
+    }
+
+    #[test]
+    fn test_php_plp() {
+        let mut cpu = program(&[0x08, 0x28]);
+        cpu.p = Status::C | Status::V;
+        cpu.tick();
+        cpu.p = Status::empty();
+        cpu.tick();
+        assert_eq!(cpu.p, Status::C | Status::V);
     }
 
     #[test]
