@@ -114,16 +114,20 @@ impl CPU {
             Accumulator => self.a,
             ZeroPage(addr) => self.wram.read_u8(addr as u16),
             ZeroPageX(addr) => {
-                let addr = addr + self.x;
+                let addr = addr.wrapping_add(self.x);
                 self.wram.read_u8(addr as u16)
             }
             ZeroPageY(addr) => {
-                let addr = addr + self.y;
+                let addr = addr.wrapping_add(self.y);
                 self.wram.read_u8(addr as u16)
             }
             Absolute(addr) => self.wram.read_u8(addr),
             AbsoluteX(addr) => {
-                let addr = addr + self.x as u16;
+                let addr = addr.wrapping_add(self.x as u16);
+                self.wram.read_u8(addr)
+            }
+            AbsoluteY(addr) => {
+                let addr = addr.wrapping_add(self.y as u16);
                 self.wram.read_u8(addr)
             }
             Indirect(addr) => {
@@ -140,11 +144,11 @@ impl CPU {
             Accumulator => self.a = data,
             ZeroPage(addr) => self.wram.write_u8(addr as u16, data),
             ZeroPageX(addr) => {
-                let addr = addr + self.x;
+                let addr = addr.wrapping_add(self.x);
                 self.wram.write_u8(addr as u16, data);
             }
             ZeroPageY(addr) => {
-                let addr = addr + self.y;
+                let addr = addr.wrapping_add(self.y);
                 self.wram.write_u8(addr as u16, data);
             }
             Absolute(addr) => self.wram.write_u8(addr, data),
