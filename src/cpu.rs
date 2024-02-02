@@ -121,6 +121,15 @@ impl CPU {
                 let addr = addr + self.y;
                 self.wram.read_u8(addr as u16)
             }
+            Absolute(addr) => self.wram.read_u8(addr),
+            AbsoluteX(addr) => {
+                let addr = addr + self.x as u16;
+                self.wram.read_u8(addr)
+            }
+            Indirect(addr) => {
+                let target = self.wram.read_u16(addr);
+                self.wram.read_u8(target)
+            }
             _ => panic!("unsupported read mode: {:?}", mode),
         }
     }
@@ -138,6 +147,7 @@ impl CPU {
                 let addr = addr + self.y;
                 self.wram.write_u8(addr as u16, data);
             }
+            Absolute(addr) => self.wram.write_u8(addr, data),
             _ => panic!("unsupported write mode: {:?}", mode),
         }
     }
@@ -200,6 +210,7 @@ impl CPU {
             0x48 => (PHA, Implicit),
             0x49 => (EOR, Immediate(self.fetch())),
             0x4A => (LSR, Accumulator),
+            0x4C => (JMP, Absolute(self.fetch_u16())),
             0x50 => (BVC, Relative(self.fetch() as i8)),
             0x55 => (EOR, ZeroPageX(self.fetch())),
             0x56 => (LSR, ZeroPageX(self.fetch())),
@@ -209,6 +220,7 @@ impl CPU {
             0x68 => (PLA, Implicit),
             0x69 => (ADC, Immediate(self.fetch())),
             0x6A => (ROR, Accumulator),
+            0x6C => (JMP, Indirect(self.fetch_u16())),
             0x6D => (ADC, Absolute(self.fetch_u16())),
             0x70 => (BVS, Relative(self.fetch() as i8)),
             0x75 => (ADC, ZeroPageX(self.fetch())),
@@ -508,6 +520,14 @@ impl CPU {
             (TXS, Implicit) => {
                 self.sp = self.x;
             }
+            // JMP is a special case in that it is the only one that can
+            // use the Indirect mode
+            (JMP, Indirect(addr)) => {
+                self.pc = self.wram.read_u16(addr);
+            }
+            (JMP, Absolute(addr)) => {
+                self.pc = addr;
+            }
             (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
             // programming error
             inst => unreachable!("unhandled instruction: {:?}", inst),
@@ -537,6 +557,14 @@ mod tests {
             | ZeroPage(val)
             | ZeroPageX(val)
             | ZeroPageY(val) => vec![opcode, val],
+            Indirect(addr)
+            | Absolute(addr)
+            | AbsoluteX(addr)
+            | AbsoluteY(addr) => {
+                let hi = (addr >> 8) as u8;
+                let lo = (addr & 0xFF) as u8;
+                vec![opcode, lo, hi]
+            }
             _ => todo!("mode {:?}", mode)
         };
         program(&bytes)
@@ -1140,6 +1168,15 @@ mod tests {
         cpu.p = Status::empty();
         cpu.tick();
         assert_eq!(cpu.p, Status::C | Status::V);
+    }
+
+    #[test]
+    fn test_jmp() {
+        test_op!(0x4C, Absolute(10), []{} => []{ pc: 10 });
+        test_op!(0x6C, Indirect(2), [0, 0, 10]{} => []{ pc: 10 });
+
+        // page boundary bug
+        // let mut cpu = program(&[0x4C]);
     }
 
     #[test]
