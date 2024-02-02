@@ -226,6 +226,7 @@ impl CPU {
             0x95 => (STA, ZeroPageX(self.fetch())),
             0x96 => (STX, ZeroPageY(self.fetch())),
             0x98 => (TYA, Implicit),
+            0x9A => (TXS, Implicit),
             0xA0 => (LDY, Immediate(self.fetch())),
             0xA2 => (LDX, Immediate(self.fetch())),
             0xA4 => (LDY, ZeroPage(self.fetch())),
@@ -239,6 +240,7 @@ impl CPU {
             0xB5 => (LDA, ZeroPageX(self.fetch())),
             0xB6 => (LDX, ZeroPageY(self.fetch())),
             0xB8 => (CLV, Implicit),
+            0xBA => (TSX, Implicit),
             0xC0 => (CPY, Immediate(self.fetch())),
             0xC4 => (CPY, ZeroPage(self.fetch())),
             0xC5 => (CMP, ZeroPage(self.fetch())),
@@ -498,6 +500,13 @@ impl CPU {
             (TYA, Implicit) => {
                 self.a = self.y;
                 self.p.set_zn_flags(self.a);
+            }
+            (TSX, Implicit) => {
+                self.x = self.sp;
+                self.p.set_zn_flags(self.x);
+            }
+            (TXS, Implicit) => {
+                self.sp = self.x;
             }
             (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
             // programming error
@@ -1087,6 +1096,19 @@ mod tests {
         // negative flag
         test_op!(0xC0, Immediate(0xFF), []{ y: 0x80 } => []{ p: Status::N });
         test_op!(0xC4, ZeroPage(0), [0xFF]{ y: 0x80 } => []{ p: Status::N });
+    }
+
+    #[test]
+    fn test_tsx() {
+        test_op!(0xBA, Implicit, []{ sp: 1 } => []{ sp: 1, x: 1 });
+        test_op!(0xBA, Implicit, []{ sp: 0 } => []{ sp: 0, x: 0, p: Status::Z });
+        test_op!(0xBA, Implicit, []{ sp: 0x80 } => []{ sp: 0x80, x: 0x80, p: Status::N });
+    }
+
+    #[test]
+    fn test_txs() {
+        test_op!(0x9A, Implicit, []{ x: 1 } => []{ sp: 1, p: Status::empty() });
+        test_op!(0x9A, Implicit, []{ x: 0xFF } => []{ sp: 0xFF, p: Status::empty() });
     }
 
     #[test]
