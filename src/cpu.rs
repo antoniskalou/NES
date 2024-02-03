@@ -162,9 +162,19 @@ impl CPU {
         self.sp = self.sp.wrapping_sub(1);
     }
 
+    fn push_stack_u16(&mut self, val: u16) {
+        self.wram.write_u16(self.sp as u16, val);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
     fn pop_stack(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         self.wram.read_u8(self.sp as u16)
+    }
+
+    fn pop_stack_u16(&mut self) -> u16 {
+        self.sp = self.sp.wrapping_add(1);
+        self.wram.read_u16(self.sp as u16)
     }
 
     fn branch(&mut self, offset: i8) {
@@ -199,6 +209,7 @@ impl CPU {
             0x15 => (ORA, ZeroPageX(self.fetch())),
             0x16 => (ASL, ZeroPageX(self.fetch())),
             0x18 => (CLC, Implicit),
+            0x20 => (JSR, Absolute(self.fetch_u16())),
             0x24 => (BIT, ZeroPage(self.fetch())),
             0x25 => (AND, ZeroPage(self.fetch())),
             0x26 => (ROL, ZeroPage(self.fetch())),
@@ -219,6 +230,7 @@ impl CPU {
             0x55 => (EOR, ZeroPageX(self.fetch())),
             0x56 => (LSR, ZeroPageX(self.fetch())),
             0x58 => (CLI, Implicit),
+            0x60 => (RTS, Implicit),
             0x65 => (ADC, ZeroPage(self.fetch())),
             0x66 => (ROR, ZeroPage(self.fetch())),
             0x68 => (PLA, Implicit),
@@ -531,6 +543,14 @@ impl CPU {
             }
             (JMP, Absolute(addr)) => {
                 self.pc = addr;
+            }
+            (JSR, Absolute(addr)) => {
+                let return_address = self.pc - 1;
+                self.push_stack_u16(return_address);
+                self.pc = addr;
+            }
+            (RTS, Implicit) => {
+                self.pc = self.pop_stack_u16() + 1;
             }
             (Illegal(opcode), _) => panic!("illegal opcode: 0x{:02X}", opcode),
             // programming error
@@ -1181,6 +1201,27 @@ mod tests {
 
         // page boundary bug
         // let mut cpu = program(&[0x4C]);
+    }
+
+    #[test]
+    fn test_jsr_rts() {
+        let mut cpu = program(&[
+            0x20, 0x04, 0x00, // jump to subroutine (16 bit address LE)
+            0xC8,             // increment Y
+            // subroutine
+            0xE8,             // increment X
+            0x60,             // return
+        ]);
+        cpu.tick();
+        assert_eq!(cpu.pc, 4);
+        // should jump directly to subroutine, skipping 0xC8
+        assert_eq!(cpu.y, 0);
+        cpu.tick();
+        assert_eq!(cpu.x, 1);
+        // return from subroutine
+        cpu.tick();
+        cpu.tick();
+        assert_eq!(cpu.y, 1);
     }
 
     #[test]
